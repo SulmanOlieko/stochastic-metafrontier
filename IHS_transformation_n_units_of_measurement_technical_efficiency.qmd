@@ -1,3 +1,19 @@
+---
+title: "Heterogeneous environmentally-adjusted efficiency effects of agro-ecological pest management transition and intensification: A latent class stochastic metafrontier approach"
+author: "Sulman Olieko Owili"
+email: "S.Owili@cgiar.org"
+date: "`r Sys.Date()`"
+output: pdf_document 
+format:
+  pdf:
+    geometry:
+      - top=30mm
+      - left=20mm
+    fontfamily: libertinus
+    fontsize: 7pt
+editor: visual
+---
+
 # Clear environment
 rm(list = ls())
 options(encoding = "utf-8")

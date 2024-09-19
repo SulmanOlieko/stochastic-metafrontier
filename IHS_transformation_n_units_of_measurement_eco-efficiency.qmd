@@ -143,8 +143,6 @@ print(allResEmp)
 # Load the necessary library
 library(xtable)
 
-# Assuming 'allResEmp' is your final data frame
-# Round the numeric values for better readability
 allResEmpRounded <- round(allResEmp, 8)
 
 # Generate the LaTeX code for the table

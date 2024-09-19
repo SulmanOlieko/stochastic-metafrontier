@@ -24,7 +24,7 @@ gc()
 
 ## Install the required packages
 
-#install.packages(c("devtools", "sfaR", "ggplot2", "cowplot","patchwork", "readxl", "dplyr", "gridExtra", "writexl"))
+#install.packages(c("devtools", "sfaR", "ggplot2", "cowplot","patchwork", "readxl", "dplyr", "gridExtra", "writexl", "stringr"))
 library(devtools)
 library(sfaR)
 library(ggplot2)
@@ -34,6 +34,7 @@ library(readxl)
 library(dplyr)
 library(gridExtra)
 library(writexl)
+library(stringr)
 
 knitr::opts_chunk$set(echo = TRUE)
 setwd("~/Desktop/Manuscript 2")
@@ -42,7 +43,7 @@ getwd()
 ## Import, view and attach the data
 
 library(readxl)
-data_2 <- read_excel("~/Desktop/Manuscript 2/data_2-2.xlsx", 
+data_2 <- read_excel("~/data_2-2.xlsx", 
     sheet = "te_ee_data")
 #View(data_2)
 suppressMessages(attach(data_2))
@@ -297,7 +298,6 @@ summary(adopters_sfa)
 ## Harvest TE for adopters
 
 ```{R}
-#sfaMargins(marginal(adopters_sfa), "Eu_")
 adopters_te <- data.frame(efficiencies(adopters_sfa))
 adopters_te <- adopters_te |>
   rename(TE_JLMS = teJLMS,
@@ -305,8 +305,6 @@ adopters_te <- adopters_te |>
          u_i = u)
 #View(adopters_te)
 suppressMessages(attach(adopters_te))
-
-# Plot for adopters
 
 # Plot for adopters data
 plot_adopters <- ggplot(adopters_te, aes(x = TE_JLMS, fill = "Adopters")) +
@@ -381,7 +379,6 @@ plot_adopters <- ggplot(adopters_te, aes(x = TE_JLMS, fill = paste("Adopters (N 
 combined_adopters_nonadopters <- plot_grid(plot_all, plot_nonadopters, plot_adopters, ncol = 1, align = "v", axis = "tb")
 
 combined_adopters_nonadopters 
-
 
 ####################################
 # Combine the datasets into one, adding a column to indicate the group
@@ -538,23 +535,23 @@ ggplot(LCM_te) +
   geom_text(data = class_means, aes(x = Posterior_p, 
                                     label = paste("", round(Posterior_p, 2)), 
                                     y = 0), 
-            vjust = -0.5, hjust = 1, size = 6, color = "black") +  # Increase size parameter here
+            vjust = -0.5, hjust = 1, size = 6, color = "black") + 
   theme_bw() +
   labs(x = "Posterior probability",
        y = "Density",
        #title = "Posterior probability distribution of class membership",
-       fill = "Class") +  # Legend title for fill aesthetic
-  scale_fill_manual(values = c("2" = "darkgreen", "1" = "orange"),  # Set colors if needed
-                    labels = c("2" = "Intensive", "1" = "Extensive")) +  # Rename classes in the legend
-  scale_color_manual(values = c("2" = "darkgreen", "1" = "orange"),  # Set colors to match fill
+       fill = "Class") + 
+  scale_fill_manual(values = c("2" = "darkgreen", "1" = "orange"), 
+                    labels = c("2" = "Intensive", "1" = "Extensive")) + 
+  scale_color_manual(values = c("2" = "darkgreen", "1" = "orange"), 
                      labels = c("2" = "Intensive", "1" = "Extensive"), 
-                     guide = "none") +  # Remove color legend since it's redundant
-  theme(axis.title = element_text(face = "bold", size = 16),  # Bold axis titles
-        axis.text = element_text(face = "bold", size = 16),   # Bold axis text
-        legend.title = element_text(face = "bold", size = 16), # Bold legend title
-        legend.text = element_text(size = 14),  # Increase legend text size
-        legend.position = "top",                   # Position legend at the top
-        plot.title = element_text(hjust = 0.5, face = "bold"))  # Centered plot
+                     guide = "none") + 
+  theme(axis.title = element_text(face = "bold", size = 16),
+        axis.text = element_text(face = "bold", size = 16), 
+        legend.title = element_text(face = "bold", size = 16),
+        legend.text = element_text(size = 14), 
+        legend.position = "top", 
+        plot.title = element_text(hjust = 0.5, face = "bold")) 
 ```
 
 ### Classify as either intensive or extensive
@@ -603,7 +600,6 @@ combined_plots <-  plot_grid(plot_intensive, plot_extensive, ncol = 1, align = "
 combined_plots 
 
 
-
 ##########################
 # Combine the datasets into one, adding a column to indicate the group
 intensive$Group <- "Intensive"
@@ -638,13 +634,11 @@ ggplot(combined_data, aes(x = TE_JLMS, fill = Group, color = Group)) +
   geom_text(data = aggregate(TE_JLMS ~ Group, data = combined_data, FUN = mean), 
             aes(x = TE_JLMS, y = 0, label = paste("", round(TE_JLMS, 2))), 
             vjust = -0.5, hjust = 1, size = 6, color = "black")
-
-
 ```
 
 #Meta-Frontier Procedure:
 
-#Predict Y_i\^{hat} for each group #Use results from the LCA
+#Predict \Y_i\^{hat} for each group #Use results from the LCA
 
 ```{R}
 # Assign Class from LCM_te to adopters
@@ -664,13 +658,12 @@ adopters$fitted_class_1[adopters$Class == 1] <- fitted(LCM)$mlFitted_c1[LCM_te$C
 adopters$fitted_class_2[adopters$Class == 2] <- fitted(LCM)$mlFitted_c2[LCM_te$Class == 2]
 
 #Pool the TEs for all groups
-
 nonadopters$te <- efficiencies(nonadopters_sfa)$teJLMS
 #View(nonadopters)
 adopters$te <- LCM_te$TE_JLMS
 #View(adopters)
 
-#Pool the Y_i\^{hat} and TE for all groups
+#Pool the \Y_i\^{hat} and TE for all groups
 
 
 merged_data_2 <- bind_rows(nonadopters, adopters)
@@ -685,7 +678,7 @@ merged_data_2$merged_fitted <- ifelse(is.na(merged_data_2$Class),merged_data_2$f
 #View(merged_data_2)
 ```
 
-#Estimate a metafrontier using the pooled Y_i\^{hat} for the whole data, including only covariates that influence TGRs
+#Estimate a metafrontier using the pooled \Y_i\^{hat} for the whole data, including only covariates that influence TGRs
 
 ```{R}
 #Stochastic Meta-frontier for all groups
@@ -743,8 +736,6 @@ summary(smfa)
 # Generalised Likelihood Ratio (GLR) test for homogeneous technology and Likelihood Ratio (LR) test for functional form
 
 ```{R}
-library(stringr)
-
 cobb_logLik <- logLik(smfa_cobb)
 cobb_logLik <- str_extract(cobb_logLik , "-?\\d+\\.\\d+")
 cobb_logLik <- as.numeric(cobb_logLik)
@@ -812,9 +803,9 @@ plot_tgr <- ggplot(merged_data_2) +
   scale_fill_manual(values = "red", name = "") +
   theme(axis.title.x = element_text(face = "bold"),
         axis.title.y = element_text(face = "bold"),
-        axis.text = element_text(face = "bold"),  # Make axis tick labels bold as well
-        legend.position = "none",  # Remove legend
-        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+        axis.text = element_text(face = "bold"), 
+        legend.position = "none", 
+        plot.title = element_text(face = "bold", hjust = 0.5))+ 
 geom_vline(xintercept = mean(merged_data_2$tgr), linetype = "dashed", color = "red") +
   annotate("text", x = mean(merged_data_2$tgr) - 0.01, y = -0.1, label = paste("", round(mean(merged_data_2$tgr), 2)),
            vjust = 1, color = "black", hjust = 1, size = 3)
@@ -836,9 +827,9 @@ plot_nonadopters_tgr <- ggplot(nonadopters_df) +
   scale_fill_manual(values = "black", name = "") +
   theme(axis.title.x = element_text(face = "bold"),
         axis.title.y = element_text(face = "bold"),
-        axis.text = element_text(face = "bold"),  # Make axis tick labels bold as well
-        legend.position = "none",  # Remove legend
-        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+        axis.text = element_text(face = "bold"), 
+        legend.position = "none", 
+        plot.title = element_text(face = "bold", hjust = 0.5))+ 
   geom_vline(xintercept = mean(merged_data_2$tgr[merged_data_2$adoption == 0]), linetype = "dashed", color = "black") +
   annotate("text", x = mean(merged_data_2$tgr[merged_data_2$adoption == 0]) - 0.01, y = -0.1, label = paste("", round(mean(merged_data_2$tgr[merged_data_2$adoption == 0]), 2)),
            vjust = 1, color = "black", hjust = 1, size = 3)
@@ -861,9 +852,9 @@ plot_adopters_tgr <- ggplot(adopters_df) +
   scale_fill_manual(values = "darkgreen", name = "") +
   theme(axis.title.x = element_text(face = "bold"),
         axis.title.y = element_text(face = "bold"),
-        axis.text = element_text(face = "bold"),  # Make axis tick labels bold as well
-        legend.position = "none",  # Remove legend
-        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+        axis.text = element_text(face = "bold"), 
+        legend.position = "none", 
+        plot.title = element_text(face = "bold", hjust = 0.5))+ 
   geom_vline(xintercept = mean(merged_data_2$tgr[merged_data_2$adoption == 1]), linetype = "dashed", color = "darkgreen") +
   annotate("text", x = mean(merged_data_2$tgr[merged_data_2$adoption == 1]) - 0.01, y = -0.1, label = paste("", round(mean(merged_data_2$tgr[merged_data_2$adoption == 1]), 2)),
            vjust = 1, color = "black", hjust = 1, size = 3)
@@ -887,7 +878,7 @@ combined_adopters_nonadopters_plot <- ggplot(adopters_nonadopters_tgr, aes(x = t
   geom_density(alpha = 0.3, size = 0.65, bw = 0.07) +
   scale_fill_manual(values = c("darkgreen", "black"), name = "") +
   geom_text(data = mean_adopters_nonadopters_tgr, aes(label = paste("", round(mean_tgr, 2)), x = mean_tgr, y = -0.1), vjust = 1, color = c("darkgreen", "black"), hjust = 1, size = 3) +
-  geom_vline(data = mean_adopters_nonadopters_tgr, aes(xintercept = mean_tgr), linetype = "dashed", color = c("darkgreen", "black")) +  # Add vertical lines
+  geom_vline(data = mean_adopters_nonadopters_tgr, aes(xintercept = mean_tgr), linetype = "dashed", color = c("darkgreen", "black")) + 
   theme_bw() +
   labs(x = "TGR", y = "Density", 
        title = "Distribution of TGR for adopters and nonadopters") +
@@ -917,9 +908,9 @@ plot_intensive_tgr <- ggplot(intensive_df) +
   scale_fill_manual(values = "darkgreen", name = "") +
   theme(axis.title.x = element_text(face = "bold"),
         axis.title.y = element_text(face = "bold"),
-        axis.text = element_text(face = "bold"),  # Make axis tick labels bold as well
-        legend.position = "none",  # Remove legend
-        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+        axis.text = element_text(face = "bold"), 
+        legend.position = "none", 
+        plot.title = element_text(face = "bold", hjust = 0.5))+ 
 geom_vline(xintercept = mean(intensive_tgr), linetype = "dashed", color = "darkgreen") +
   annotate("text", x = mean(intensive_tgr) - 0.01, y = -0.1, label = paste("", round(mean(intensive_tgr), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
   plot_intensive_tgr
@@ -942,8 +933,8 @@ plot_extensive_tgr <- ggplot(extensive_df) +
   scale_fill_manual(values = "orange", name = "") +
   theme(axis.title.x = element_text(face = "bold"),
         axis.title.y = element_text(face = "bold"),
-        axis.text = element_text(face = "bold"),  # Make axis tick labels bold as well
-        legend.position = "none",  # Remove legend
+        axis.text = element_text(face = "bold"), 
+        legend.position = "none", 
         plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
   geom_vline(xintercept = mean(extensive_tgr), linetype = "dashed", color = "orange") +
   annotate("text", x = mean(extensive_tgr) - 0.01, y = -0.1, label = paste("", round(mean(extensive_tgr), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
@@ -1000,7 +991,7 @@ combined_all_three_plot <- ggplot(all_three_tgr, aes(x = tgr, fill = group)) +
   geom_density(alpha = 0.4, size = 0.65, bw = 0.1) +
   scale_fill_manual(values = c("orange","darkgreen","black"), name = "") +
   geom_text(data = mean_all_three_tgr, aes(label = paste("", round(mean_tgr, 2)), x = mean_tgr, y = -0.1), vjust = 1, color = c("orange", "darkgreen", "black"), hjust = 1, size = 6) +
-  geom_vline(data = mean_all_three_tgr, aes(xintercept = mean_tgr), linetype = "dashed", color = c("orange", "darkgreen", "black")) +  # Add vertical lines
+  geom_vline(data = mean_all_three_tgr, aes(xintercept = mean_tgr), linetype = "dashed", color = c("orange", "darkgreen", "black")) + 
   theme_bw() +
   labs(x = "TGR", y = "Density",
        title = "") +
@@ -1033,9 +1024,9 @@ plot_mte <- ggplot(merged_data_2) +
   labs(x = "MTE", y = "Density", title = paste("Pooled (N =",length(as.numeric(unlist(merged_data_2$mte))),")")) +
   theme(axis.title.x = element_text(face = "bold"),
         axis.title.y = element_text(face = "bold"),
-        axis.text = element_text(face = "bold"), # Make axis tick labels bold as well
-        legend.position = "none",  # Remove legend
-        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+        axis.text = element_text(face = "bold"),
+        legend.position = "none", 
+        plot.title = element_text(face = "bold", hjust = 0.5))+ 
 geom_vline(xintercept = mean(merged_data_2$mte), linetype = "dashed", color = "red") +
   annotate("text", x = mean(merged_data_2$mte) - 0.01, y = -0.1, label = paste("", round(mean(merged_data_2$mte), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
   plot_mte
@@ -1057,8 +1048,8 @@ plot_nonadopters_mte <- ggplot(nonadopters_df) +
   scale_fill_manual(values = "black", name = "") +
   theme(axis.title.x = element_text(face = "bold"),
         axis.title.y = element_text(face = "bold"),
-        axis.text = element_text(face = "bold"), # Make axis tick labels bold as well
-        legend.position = "none",  # Remove legend
+        axis.text = element_text(face = "bold"), 
+        legend.position = "none", 
         plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
 geom_vline(xintercept = mean(merged_data_2$mte[merged_data_2$adoption == 0]), linetype = "dashed", color = "black") +
   annotate("text", x = mean(merged_data_2$mte[merged_data_2$adoption == 0]) - 0.01, y = -0.1, label = paste("", round(mean(merged_data_2$mte[merged_data_2$adoption == 0]), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
@@ -1066,7 +1057,6 @@ geom_vline(xintercept = mean(merged_data_2$mte[merged_data_2$adoption == 0]), li
 ```
 
 # MTE for adopters
-
 ```{R}
 adopters_mte <- as.numeric(unlist(merged_data_2$mte[merged_data_2$adoption == 1]))
 # Check the structure of adopters_mte to understand its format
@@ -1081,8 +1071,8 @@ plot_adopters_mte <- ggplot(adopters_df) +
   scale_fill_manual(values = "darkgreen", name = "") +
   theme(axis.title.x = element_text(face = "bold"),
         axis.title.y = element_text(face = "bold"),
-        axis.text = element_text(face = "bold"), # Make axis tick labels bold as well
-        legend.position = "none",  # Remove legend
+        axis.text = element_text(face = "bold"), 
+        legend.position = "none", 
         plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
 geom_vline(xintercept = mean(merged_data_2$mte[merged_data_2$adoption == 1]), linetype = "dashed", color = "darkgreen") +
   annotate("text", x = mean(merged_data_2$mte[merged_data_2$adoption == 1]) - 0.01, y = -0.1, label = paste("", round(mean(merged_data_2$mte[merged_data_2$adoption == 1]), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
@@ -1106,7 +1096,7 @@ combined_adopters_nonadopters_mte_plot <- ggplot(adopters_nonadopters_mte, aes(x
   geom_density(alpha = 0.3, size = 0.65, bw = 0.07) +
   scale_fill_manual(values = c("darkgreen", "black"), name = "") +
   geom_text(data = mean_adopters_nonadopters_mte, aes(label = paste("", round(mean_mte, 2)), x = mean_mte, y = -0.1), vjust = 1, color = c("darkgreen", "black"), hjust = 1, size = 3) +
-  geom_vline(data = mean_adopters_nonadopters_mte, aes(xintercept = mean_mte), linetype = "dashed", color = c("darkgreen", "black")) +  # Add vertical lines
+  geom_vline(data = mean_adopters_nonadopters_mte, aes(xintercept = mean_mte), linetype = "dashed", color = c("darkgreen", "black")) + 
   theme_bw() +
   labs(x = "MTE", y = "Density", 
        title = "Distribution of MTE for adopters and non-adopters") +
@@ -1136,9 +1126,9 @@ plot_extensive_mte <- ggplot(extensive_df) +
   scale_fill_manual(values = "orange", name = "") +
   theme(axis.title.x = element_text(face = "bold"),
         axis.title.y = element_text(face = "bold"),
-        axis.text = element_text(face = "bold"), # Make axis tick labels bold as well
-        legend.position = "none",  # Remove legend
-        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+        axis.text = element_text(face = "bold"),
+        legend.position = "none", 
+        plot.title = element_text(face = "bold", hjust = 0.5))+ 
 geom_vline(xintercept = mean(extensive_mte), linetype = "dashed", color = "orange") +
   annotate("text", x = mean(extensive_mte) - 0.01, y = -0.1, label = paste("", round(mean(extensive_mte), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
   plot_extensive_mte
@@ -1159,8 +1149,8 @@ plot_intensive_mte <- ggplot(intensive_df) +
   scale_fill_manual(values = "darkgreen", name = "") +
   theme(axis.title.x = element_text(face = "bold"),
         axis.title.y = element_text(face = "bold"),
-        axis.text = element_text(face = "bold"), # Make axis tick labels bold as well
-        legend.position = "none",  # Remove legend
+        axis.text = element_text(face = "bold"), 
+        legend.position = "none", 
         plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
 geom_vline(xintercept = mean(intensive_mte), linetype = "dashed", color = "darkgreen") +
   annotate("text", x = mean(intensive_mte) - 0.01, y = -0.1, label = paste("", round(mean(intensive_mte), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
@@ -1220,7 +1210,7 @@ combined_all_three_mte_plot <- ggplot(all_three_mte, aes(x = mte, fill = group))
   geom_density(alpha = 0.4, size = 0.65, bw = 0.1) +
   scale_fill_manual(values = c("orange","darkgreen","black"), name = "") +
   geom_text(data = mean_all_three_mte, aes(label = paste("", round(mean_mte, 2)), x = mean_mte, y = -0.1), vjust = 1, color = c("orange","darkgreen","black"), hjust = 1, size = 6) +
-  geom_vline(data = mean_all_three_mte, aes(xintercept = mean_mte), linetype = "dashed", color = c("orange","darkgreen","black")) +  # Add vertical lines
+  geom_vline(data = mean_all_three_mte, aes(xintercept = mean_mte), linetype = "dashed", color = c("orange","darkgreen","black")) + 
   theme_bw() +
   labs(x = "MTE", y = "Density", 
        title = "") +

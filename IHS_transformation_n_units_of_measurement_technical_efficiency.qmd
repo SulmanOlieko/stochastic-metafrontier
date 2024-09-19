@@ -1,0 +1,163 @@
+# Clear environment
+rm(list = ls())
+options(encoding = "utf-8")
+mySeed <- 123
+
+# Load necessary libraries
+library("haven")
+library("lmtest")
+library("moments")
+library("DescTools")
+library("readxl")
+library("nortest") 
+library(xtable)
+
+# Define predR2 function
+predR2  <- function(linear.model) {
+  pr <- residuals(linear.model) / (1 - lm.influence(linear.model)$hat)
+  lm.anova <- anova(linear.model)
+  tss <- sum(lm.anova[["Sum Sq"]])
+  pred.r.squared <- 1 - sum(pr^2) / tss
+  return(pred.r.squared)
+}
+
+# Load data
+data <- read_excel("~/Desktop/Manuscript 2/data_2-2.xlsx", sheet = "te_ee_data")
+
+# Define factors and criteria
+ihsFactors <- 10^((-9):9)
+allCrit <- matrix(c( 
+  "rSquared", "max", 
+  "pSquared", "max",
+  "logLik", "max",
+  "logLikAdj", "max",
+  "Kolmogorov-Smirnov", "min",
+  "Shapiro-Wilk", "max",
+  "Shapiro-Fancia", "max", 
+  "Anderson", "min",
+  "Jarque-Bera", "min",
+  "Pearson", "min",
+  "kurtosis", "min abs",
+  "skewness", "min abs",
+  "Breusch-Pagan", "min",
+  "RESET", "min"), ncol = 2, byrow = TRUE)
+
+allTest <- c(allCrit[, 1])
+estIhs <- list()
+res <- matrix(NA, nrow = length(ihsFactors), ncol = length(allTest))
+rownames(res) <- ihsFactors
+colnames(res) <- allTest
+
+data$yield <- log(data$`Qty_total_production_kg/ha`)
+data$land <- log(data$Land_ha_mango...246)
+data$labour <- log(data$`Qty_total_labour_mandays/ha...45`)
+
+# Iterate over each scale factor
+for(scaleNo in 1:length(ihsFactors)) {
+  # Data transformations
+  data$fertiliser <- asinh(data$`Qty_total_fertilizers_ml_g/ha...80` * ihsFactors[scaleNo])
+  data$insecticide <- asinh(data$Qty_total_insecticides_ml_gha * ihsFactors[scaleNo])
+  data$fungicide <- asinh(data$Qty_total_fungicide_g_ml * ihsFactors[scaleNo])
+  data$manure <- asinh(data$Qty_total_manure_gha...51 * ihsFactors[scaleNo])
+  
+  # Fit the model
+  estIhs[[scaleNo]] <- lm(yield ~ land + labour + fertiliser + insecticide + fungicide + manure, 
+                          I(1/2*(land)^2)+
+                            I(1/2*(labour)^2)+
+                            I(1/2*(fertiliser)^2)+
+                            I(1/2*(insecticide)^2)+
+                            I(1/2*(fungicide)^2)+
+                            I(1/2*(manure)^2)+
+                            I(land*labour)+
+                            I(land*fertiliser)+
+                            I(land*insecticide)+
+                            I(land*fungicide)+
+                            I(land*manure)+
+                            I(labour*fertiliser)+
+                            I(labour*insecticide)+
+                            I(labour*fungicide)+
+                            I(labour*manure)+
+                            I(fertiliser*insecticide)+
+                            I(fertiliser*fungicide)+
+                            I(fertiliser*manure)+
+                            I(insecticide*fungicide)+
+                            I(insecticide*manure)+
+                            I(fungicide*manure),
+                            data = data)
+  
+  # Print the scale factor for debugging
+  print(paste("Processing scale factor:", ihsFactors[scaleNo]))
+  
+  # Check if the model fitting was successful
+  if(any(is.na(coef(estIhs[[scaleNo]])))) {
+    print("Warning: Model fitting returned NA coefficients, skipping this iteration.")
+    next
+  }
+  
+  # Store results in the res matrix
+  res[scaleNo, "rSquared"] <- summary(estIhs[[scaleNo]])$r.squared
+  res[scaleNo, "pSquared"] <- predR2(estIhs[[scaleNo]])
+  res[scaleNo, "logLik"] <- logLik(estIhs[[scaleNo]])
+  
+  # Corrected log-likelihood adjustment
+  tryCatch({
+    res[scaleNo, "logLikAdj"] <- logLik(estIhs[[scaleNo]]) - 
+      0.5 * sum(log((data$`Qty_total_production_kg/ha` * ihsFactors[scaleNo])^2 + 1)) +
+      (length(data$`Qty_total_production_kg/ha`) / 2) * log(ihsFactors[scaleNo]^2)
+  }, error = function(e) {
+    print(paste("Error in logLikAdj calculation for scale factor:", ihsFactors[scaleNo]))
+    res[scaleNo, "logLikAdj"] <- NA
+  })
+  
+  # Normality tests
+  res[scaleNo, "Kolmogorov-Smirnov"] <- ks.test(resid(estIhs[[scaleNo]]), "pnorm", mean = mean(resid(estIhs[[scaleNo]])), sd = sd(resid(estIhs[[scaleNo]])))$statistic
+  res[scaleNo, "Shapiro-Wilk"] <- shapiro.test(resid(estIhs[[scaleNo]]))$statistic
+  res[scaleNo, "Shapiro-Fancia"] <- ShapiroFranciaTest(resid(estIhs[[scaleNo]]))$statistic
+  res[scaleNo, "Anderson"] <- nortest::ad.test(resid(estIhs[[scaleNo]]))$statistic
+  res[scaleNo, "Jarque-Bera"] <- JarqueBeraTest(resid(estIhs[[scaleNo]]), robust = TRUE)$statistic
+  res[scaleNo, "Pearson"] <- PearsonTest(resid(estIhs[[scaleNo]]), adjust=TRUE)$statistic
+  
+  # Kurtosis and skewness
+  res[scaleNo, "kurtosis"] <- kurtosis(resid(estIhs[[scaleNo]]))
+  res[scaleNo, "skewness"] <- skewness(resid(estIhs[[scaleNo]]))
+  
+  # Heteroscedasticity and functional form tests
+  res[scaleNo, "Breusch-Pagan"] <- bptest(estIhs[[scaleNo]])$statistic
+  res[scaleNo, "RESET"] <- resettest(estIhs[[scaleNo]])$statistic
+  
+  # Print the current state of the res matrix for debugging
+  print(res)
+}
+
+# Print final results
+print("Final res matrix:")
+print(res)
+
+# Combine results into a data frame
+allResEmp <- as.data.frame(cbind("scale factor" = log(ihsFactors, 10), 
+                                 "unit of measurement" = -log(ihsFactors, 10), res))
+
+# Print final combined results
+print("Final combined results:")
+print(allResEmp)
+
+# Assuming 'allResEmp' is your final data frame
+# Round the numeric values for better readability
+allResEmpRounded <- round(allResEmp, 8)
+
+# Generate the LaTeX code for the table
+latex_table <- xtable(allResEmpRounded, 
+                      caption = "Summary of Model Results by Scale Factor", 
+                      label = "tab:model_results")
+
+# Define the file path where you want to save the LaTeX file
+file_path <- "model_results_table.tex"
+
+# Save the LaTeX code to a .tex file
+print(latex_table, 
+      file = file_path, 
+      include.rownames = FALSE, 
+      table.placement = "H", 
+      caption.placement = "top")
+
+#---------------------

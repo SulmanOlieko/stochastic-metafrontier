@@ -1,1 +1,1322 @@
+---
+title: "Heterogeneous environmentally-adjusted efficiency effects of agro-ecological pest management transition and intensification: A latent class stochastic metafrontier approach"
+author: "Sulman Olieko Owili"
+email: "S.Owili@cgiar.org"
+date: "`r Sys.Date()`"
+output: pdf_document 
+format:
+  pdf:
+    geometry:
+      - top=30mm
+      - left=20mm
+    fontfamily: libertinus
+    fontsize: 7pt
+    
+editor: visual
+---
+
+## Clear the environment
+
+```{r setup, set-wd, include=FALSE}
+rm(list=ls())
+#dev.off()
+gc()
+
+## Install the required packages
+
+#install.packages(c("devtools", "sfaR", "ggplot2", "cowplot","patchwork", "readxl", "dplyr", "gridExtra", "writexl"))
+library(devtools)
+library(sfaR)
+library(ggplot2)
+library(cowplot)
+library(patchwork)
+library(readxl)
+library(dplyr)
+library(gridExtra)
+library(writexl)
+
+knitr::opts_chunk$set(echo = TRUE)
+setwd("~/Desktop/Manuscript 2")
+getwd()
+
+## Import, view and attach the data
+
+library(readxl)
+data_2 <- read_excel("~/Desktop/Manuscript 2/data_2-2.xlsx", 
+    sheet = "te_ee_data")
+#View(data_2)
+suppressMessages(attach(data_2))
+```
+
+# Deal with non-exposure: Drop observations where awareness == 0
+
+```{R}
+data_2 <- data_2[data_2$awareness != 0, ]
+```
+
+#Standard SFA for all farmers
+
+```{R}
+
+all_sfa <- sfacross(formula=Log_Qty_total_production_kgha_norm ~
+                              Log_Land_ha_mango_norm+
+                              Asinh_Qty_total_fertilizers_hgha_norm+
+                              Asinh_Qty_total_fungicide_hgha_norm+
+                              Asinh_Qty_total_pesticides_hgha_norm+
+                              Log_Qty_total_labour_mandaysha_norm+
+                              Asinh_Qty_total_manure_hgha_norm+
+                              I(1/2*(Log_Land_ha_mango_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_fertilizers_hgha_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_fungicide_hgha_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_pesticides_hgha_norm)^2)+
+                              I(1/2*(Log_Qty_total_labour_mandaysha_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_manure_hgha_norm)^2)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_fertilizers_hgha_norm)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_fungicide_hgha_norm)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_pesticides_hgha_norm)+
+                              I(Log_Land_ha_mango_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Asinh_Qty_total_fungicide_hgha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Asinh_Qty_total_pesticides_hgha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Asinh_Qty_total_fungicide_hgha_norm*Asinh_Qty_total_pesticides_hgha_norm)+
+                              I(Asinh_Qty_total_fungicide_hgha_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Asinh_Qty_total_fungicide_hgha_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Asinh_Qty_total_pesticides_hgha_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Asinh_Qty_total_pesticides_hgha_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Log_Qty_total_labour_mandaysha_norm*Asinh_Qty_total_manure_hgha_norm),
+                 udist = 'hnormal', 
+                 method = 'mla', 
+                 logDepVar = TRUE,
+                 data = data_2)
+summary(all_sfa)
+
+```
+
+## Harvest TE for all farmers
+
+```{R}
+
+all_te <- data.frame(efficiencies(all_sfa))
+all_te <- all_te |>
+  rename(TE_JLMS = teJLMS,
+         TE_BC = teBC,
+         u_i = u)
+#View(all_te)
+suppressMessages(attach(all_te))
+
+# Plot TE for all data
+
+# Plot for all data
+plot_all <- ggplot(all_te, aes(x = TE_JLMS, fill = "All farmers")) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.1) +
+  theme_bw() +
+  labs(x = "TE", y = "Density", 
+       title = paste("Pooled (N =", length(all_te$TE_JLMS), ")")) +
+  scale_fill_manual(values = "red", name = "Category") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"),
+        legend.position = "none",
+        plot.title = element_text(face = "bold", hjust = 0.5)) +
+  geom_vline(xintercept = mean(all_te$TE_JLMS), linetype = "dashed", color = "red") +
+  annotate("text", x = mean(all_te$TE_JLMS) - 0.01, y = -0.1, label = paste("Mean TE:", round(mean(all_te$TE_JLMS), 2)), 
+           vjust = 1, color = "black", hjust = 1, size = 3)
+
+plot_all
+```
+
+```{R}
+data_2$all_TE <- all_te$TE_JLMS
+
+length(data_2$all_TE)
+mean(all_te$TE_JLMS)
+
+length(data_2$all_TE[data_2$adoption == 0])
+mean(data_2$all_TE[data_2$adoption == 0])
+
+length(data_2$all_TE[data_2$adoption == 1])
+mean(data_2$all_TE[data_2$adoption == 1])
+```
+
+## Subset the data to get nonadopters
+
+```{R}
+nonadopters <- data_2[data_2$adoption == 0,]
+#View(nonadopters)
+suppressMessages(attach(nonadopters))
+
+##Standard SFA for nonadopters
+nonadopters_sfa <- sfacross(formula=Log_Qty_total_production_kgha_norm ~
+                              Log_Land_ha_mango_norm+
+                              Asinh_Qty_total_fertilizers_hgha_norm+
+                              Asinh_Qty_total_fungicide_hgha_norm+
+                              Asinh_Qty_total_pesticides_hgha_norm+
+                              Log_Qty_total_labour_mandaysha_norm+
+                              Asinh_Qty_total_manure_hgha_norm+
+                              I(1/2*(Log_Land_ha_mango_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_fertilizers_hgha_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_fungicide_hgha_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_pesticides_hgha_norm)^2)+
+                              I(1/2*(Log_Qty_total_labour_mandaysha_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_manure_hgha_norm)^2)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_fertilizers_hgha_norm)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_fungicide_hgha_norm)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_pesticides_hgha_norm)+
+                              I(Log_Land_ha_mango_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Asinh_Qty_total_fungicide_hgha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Asinh_Qty_total_pesticides_hgha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Asinh_Qty_total_fungicide_hgha_norm*Asinh_Qty_total_pesticides_hgha_norm)+
+                              I(Asinh_Qty_total_fungicide_hgha_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Asinh_Qty_total_fungicide_hgha_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Asinh_Qty_total_pesticides_hgha_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Asinh_Qty_total_pesticides_hgha_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Log_Qty_total_labour_mandaysha_norm*Asinh_Qty_total_manure_hgha_norm),
+                 udist = 'hnormal', 
+                 method = 'mla', 
+                 logDepVar = TRUE,
+                 uhet = ~
+                            #variety+
+                            I(m_trees/orchard_size)+
+                            age_trees+
+                            distance_to_input_market_meters+
+                            factor(pseverity_severe)+
+                            age_om_years+
+                            factor(group_membership_om_yes)+
+                            #education_om+
+                            hhsize+
+                            factor(gender_om_male)+
+                            asinh(tlu)+
+                            asinh(income_hhh)+
+                            factor(training_pest_management_yes), 
+                 data = nonadopters)
+summary(nonadopters_sfa)
+```
+
+## Harvest marginal effects matrix
+
+```{R}
+#options(scipen = 3)
+#data <- data.frame(marginal(nonadopters_sfa),
+#                   id = nonadopters$id...1)
+#sfaMargins(data, "Eu_")
+```
+
+## Harvest TE for nonadopters
+
+```{R}
+nonadopters_te <- data.frame(efficiencies(nonadopters_sfa))
+nonadopters_te <- nonadopters_te |>
+  rename(TE_JLMS = teJLMS,
+         TE_BC = teBC,
+         u_i = u)
+#View(nonadopters_te)
+suppressMessages(attach(nonadopters_te))
+
+# Plot for non-adopters data
+plot_nonadopters <- ggplot(nonadopters_te, aes(x = TE_JLMS, fill = "Non-adopters")) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.1) +
+  theme_bw() +
+  labs(x = "TE", y = "Density", 
+       title = paste("Non-adopters (N =", length(nonadopters_te$TE_JLMS), ")")) +
+  scale_fill_manual(values = "black", name = "Category") +
+  theme(axis.title.x = element_text(face = "bold", size = 12),
+        axis.title.y = element_text(face = "bold", size = 12),
+        axis.text = element_text(face = "bold", size = 12),
+        legend.position = "none",
+        plot.title = element_text(face = "bold", hjust = 0.5)) +
+  geom_vline(xintercept = mean(nonadopters_te$TE_JLMS), linetype = "dashed", color = "black") +
+  annotate("text", x = mean(nonadopters_te$TE_JLMS) - 0.01, y = -0.1, label = paste("Mean TE:", round(mean(nonadopters_te$TE_JLMS), 2)), 
+           vjust = 1, color = "black", hjust = 1, size = 4)
+
+plot_nonadopters
+```
+
+### Subset adopters
+
+```{R}
+adopters <- data_2[data_2$adoption == 1,]
+#View(adopters)
+suppressMessages(attach(adopters))
+
+#Standard SFA for adopters
+
+adopters_sfa <- sfacross(formula=Log_Qty_total_production_kgha_norm ~
+                              Log_Land_ha_mango_norm+
+                              Asinh_Qty_total_fertilizers_hgha_norm+
+                              Asinh_Qty_total_fungicide_hgha_norm+
+                              Asinh_Qty_total_pesticides_hgha_norm+
+                              Log_Qty_total_labour_mandaysha_norm+
+                              Asinh_Qty_total_manure_hgha_norm+
+                              I(1/2*(Log_Land_ha_mango_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_fertilizers_hgha_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_fungicide_hgha_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_pesticides_hgha_norm)^2)+
+                              I(1/2*(Log_Qty_total_labour_mandaysha_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_manure_hgha_norm)^2)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_fertilizers_hgha_norm)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_fungicide_hgha_norm)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_pesticides_hgha_norm)+
+                              I(Log_Land_ha_mango_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Asinh_Qty_total_fungicide_hgha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Asinh_Qty_total_pesticides_hgha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Asinh_Qty_total_fungicide_hgha_norm*Asinh_Qty_total_pesticides_hgha_norm)+
+                              I(Asinh_Qty_total_fungicide_hgha_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Asinh_Qty_total_fungicide_hgha_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Asinh_Qty_total_pesticides_hgha_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Asinh_Qty_total_pesticides_hgha_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Log_Qty_total_labour_mandaysha_norm*Asinh_Qty_total_manure_hgha_norm),
+                      udist = 'hnormal', 
+                      method = 'bhhh', 
+                      logDepVar = TRUE,
+                      uhet = ~
+                            #variety+
+                            I(m_trees/orchard_size)+
+                            age_trees+
+                            distance_to_input_market_meters+
+                            factor(pseverity_severe)+
+                            age_om_years+
+                            factor(group_membership_om_yes)+
+                            #education_om+
+                            hhsize+
+                            factor(gender_om_male)+
+                            asinh(tlu)+
+                            #asinh(income_hhh)+
+                            factor(training_pest_management_yes),
+                 data = adopters)
+summary(adopters_sfa)
+```
+
+## Harvest TE for adopters
+
+```{R}
+#sfaMargins(marginal(adopters_sfa), "Eu_")
+adopters_te <- data.frame(efficiencies(adopters_sfa))
+adopters_te <- adopters_te |>
+  rename(TE_JLMS = teJLMS,
+         TE_BC = teBC,
+         u_i = u)
+#View(adopters_te)
+suppressMessages(attach(adopters_te))
+
+# Plot for adopters
+
+# Plot for adopters data
+plot_adopters <- ggplot(adopters_te, aes(x = TE_JLMS, fill = "Adopters")) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.1) +
+  theme_bw() +
+  labs(x = "TE", y = "Density", 
+       title = paste("Adopters (N =", length(adopters_te$TE_JLMS), ")")) +
+  scale_fill_manual(values = "darkgreen", name = "") +
+  theme(axis.title.x = element_text(face = "bold", size = 12),
+        axis.title.y = element_text(face = "bold", size = 12),
+        axis.text = element_text(face = "bold", size = 12),
+        legend.position = "none",
+        plot.title = element_text(face = "bold", hjust = 0.5)) +
+  geom_vline(xintercept = mean(adopters_te$TE_JLMS), linetype = "dashed", color = "darkgreen") +
+  annotate("text", x = mean(adopters_te$TE_JLMS) - 0.01, y = -0.1, label = paste("Mean TE:", round(mean(adopters_te$TE_JLMS), 2)), 
+           vjust = 1, color = "black", hjust = 1, size = 4)
+
+plot_adopters
+```
+
+### Plot all, adopters and non-adopters together
+
+```{R}
+# Plot for all farmers
+plot_all <- ggplot(all_te, aes(x = TE_JLMS, fill = paste("Pooled (N =", length(all_te$TE_JLMS),")"))) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.1) +
+  theme_bw() +
+  labs(x = "", y = "Density", 
+       title = paste("Pooled (N =", length(all_te$TE_JLMS), ")")) +
+  scale_fill_manual(values = "red", name = "Category") +
+  theme(axis.title.x = element_text(face = "bold", size = 12),
+        axis.title.y = element_text(face = "bold", size = 12),
+        axis.text = element_text(face = "bold", size = 12),
+        legend.position = "none",
+        plot.title = element_text(face = "bold", hjust = 0.5)) +
+  geom_vline(xintercept = mean(all_te$TE_JLMS), linetype = "dashed", color = "red") +
+  annotate("text", x = mean(all_te$TE_JLMS) - 0.01, y = -0.3, label = paste("Mean TE:", round(mean(all_te$TE_JLMS), 2)), 
+           vjust = -0.01, color = "black", hjust = 1, size = 4)
+
+# Plot for non-adopters
+plot_nonadopters <- ggplot(nonadopters_te, aes(x = TE_JLMS, fill = paste("Non-adopters (N =", length(nonadopters_te$TE_JLMS), ")"))) +
+  geom_density(alpha = 0.3,size = 0.65, bw = 0.1) +
+  theme_bw() +
+  labs(x = "", y = "Density", title = paste("Non-adopters (N =", length(nonadopters_te$TE_JLMS),")")) +
+  scale_fill_manual(values = "black", name = "") +
+  theme(axis.title.x = element_text(face = "bold", size = 12),
+        axis.title.y = element_text(face = "bold", size = 12),
+        axis.text = element_text(face = "bold", size = 12),
+        legend.position = "none",
+        plot.title = element_text(face = "bold", hjust = 0.5)) +
+  geom_vline(xintercept = mean(nonadopters_te$TE_JLMS), linetype = "dashed", color = "black") +
+  annotate("text", x = mean(nonadopters_te$TE_JLMS) - 0.01, y = -0.3, label = paste("Mean TE:", round(mean(nonadopters_te$TE_JLMS), 2)), 
+           vjust = -0.01, color = "black", hjust = 1, size = 4)
+
+# Plot for adopters
+plot_adopters <- ggplot(adopters_te, aes(x = TE_JLMS, fill = paste("Adopters (N =", length(adopters_te$TE_JLMS), ")"))) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.1) +
+  theme_bw() +
+  labs(x = "TE", y = "Density", title = paste("Adopters (N =", length(adopters_te$TE_JLMS),")")) +
+  scale_fill_manual(values = "darkgreen", name = "") +
+  theme(axis.title.x = element_text(face = "bold", size = 12),
+        axis.title.y = element_text(face = "bold", size = 12),
+        axis.text = element_text(face = "bold", size = 12),
+        legend.position = "none",
+        plot.title = element_text(face = "bold", hjust = 0.5)) +
+  geom_vline(xintercept = mean(adopters_te$TE_JLMS), linetype = "dashed", color = "darkgreen") +
+  annotate("text", x = mean(adopters_te$TE_JLMS) - 0.01, y = -0.5, label = paste("Mean TE:", round(mean(adopters_te$TE_JLMS), 2)), 
+           vjust = -0.01, color = "black", hjust = 1, size = 4)
+
+
+# Combine plots
+combined_adopters_nonadopters <- plot_grid(plot_all, plot_nonadopters, plot_adopters, ncol = 1, align = "v", axis = "tb")
+
+combined_adopters_nonadopters 
+
+
+####################################
+# Combine the datasets into one, adding a column to indicate the group
+all_te$Group <- "Pooled"
+nonadopters_te$Group <- "Non-adopters"
+adopters_te$Group <- "Adopters"
+
+combined_data <- rbind(all_te, nonadopters_te, adopters_te)
+
+# Define the color mappings
+group_colors <- c(
+  "Pooled" = "darkorange",
+  "Non-adopters" = "black",
+  "Adopters" = "darkgreen"
+)
+
+ggplot(combined_data, aes(x = TE_JLMS, fill = Group, color = Group)) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.1) +
+  theme_bw() +
+  labs(x = "TE", y = "Density") +
+  scale_fill_manual(values = group_colors, name = "Category") +
+  scale_color_manual(values = group_colors, name = "Category") +
+  theme(axis.title.x = element_text(face = "bold", size = 20),
+        axis.title.y = element_text(face = "bold", size = 20),
+        axis.text.x = element_text(face = "bold", size = 16),
+        axis.text.y = element_text(face = "bold", size = 16),
+        legend.text = element_text(size = 16),
+        legend.title = element_text(face = "bold", size = 16),
+        legend.position = "top",
+        plot.title = element_blank()) +
+  geom_vline(data = aggregate(TE_JLMS ~ Group, data = combined_data, FUN = mean), 
+             aes(xintercept = TE_JLMS, color = Group), linetype = "dashed")+ 
+  geom_text(data = aggregate(TE_JLMS ~ Group, data = combined_data, FUN = mean), 
+            aes(x = TE_JLMS, y = 0, label = paste("", round(TE_JLMS, 2), sep=" ")), 
+            vjust = -0.5, hjust = 1, size = 5, color = "black")
+##########################################
+
+```
+
+#Latent Class SFA for adopters
+
+```{R}
+LCM <- sfalcmcross(formula=Log_Qty_total_production_kgha_norm ~
+                              Log_Land_ha_mango_norm+
+                              Asinh_Qty_total_fertilizers_hgha_norm+
+                              Asinh_Qty_total_fungicide_hgha_norm+
+                              Asinh_Qty_total_pesticides_hgha_norm+
+                              Log_Qty_total_labour_mandaysha_norm+
+                              Asinh_Qty_total_manure_hgha_norm+
+                              I(1/2*(Log_Land_ha_mango_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_fertilizers_hgha_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_fungicide_hgha_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_pesticides_hgha_norm)^2)+
+                              I(1/2*(Log_Qty_total_labour_mandaysha_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_manure_hgha_norm)^2)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_fertilizers_hgha_norm)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_fungicide_hgha_norm)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_pesticides_hgha_norm)+
+                              I(Log_Land_ha_mango_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Asinh_Qty_total_fungicide_hgha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Asinh_Qty_total_pesticides_hgha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Asinh_Qty_total_fungicide_hgha_norm*Asinh_Qty_total_pesticides_hgha_norm)+
+                              I(Asinh_Qty_total_fungicide_hgha_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Asinh_Qty_total_fungicide_hgha_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Asinh_Qty_total_pesticides_hgha_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Asinh_Qty_total_pesticides_hgha_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Log_Qty_total_labour_mandaysha_norm*Asinh_Qty_total_manure_hgha_norm),
+                   S = 1L,
+                   udist = "hnormal",
+                   initAlg = "bhhh",
+                   initIter = 100,
+                   lcmClasses = 2,
+                   method = "nr", 
+                   hessianType = 1L,
+                   itermax = 200000L,
+                   printInfo = FALSE,
+                   tol = 1e-12,
+                   gradtol = 1e-06,
+                   stepmax = 0.1,
+                   qac = "marquardt", 
+                   uhet = ~
+                            variety+
+                            orchard_size+
+                            age_trees+
+                            distance_to_input_market_meters+
+                            factor(pseverity_severe)+
+                            age_om_years+
+                            factor(group_membership_om_yes)+
+                            education_om+
+                            hhsize+
+                            factor(gender_om_male)+
+                            asinh(tlu)+
+                            factor(training_pest_management_yes), 
+                   thet = ~ 
+                            intensity+
+                            I(apm/m_trees/Land_ha_mango...246),
+                   data = adopters)
+summary(LCM)
+```
+
+### Harvest TEs
+
+```{R}
+#sfaMargins(marginal(LCM), "Eu_")
+LCM_te <- data.frame(efficiencies(LCM),
+                     id <- adopters$id...1)
+LCM_te <- LCM_te |>
+  rename(Class = Group_c,
+         Posterior_p = PosteriorProb_c,
+         TE_JLMS = teJLMS_c,
+         TE_BC = teBC_c,
+         u_i = u_c,
+         id =id....adopters.id...1)
+#View(LCM_te)
+suppressMessages(attach(LCM_te))
+
+#Class distribution
+#table(LCM_te$Class)
+
+#Mean TEs
+
+#Class 1
+length(LCM_te$Posterior_p[LCM_te$Class == 1])
+mean(subset(LCM_te, Class == 1)$TE_JLMS)
+
+#Class 2
+length(LCM_te$Posterior_p[LCM_te$Class == 2])
+mean(subset(LCM_te, Class == 2)$TE_JLMS)
+
+#Posterior probabilities
+length(LCM_te$Posterior_p[LCM_te$Class == 1])
+mean(LCM_te$Posterior_p[LCM_te$Class == 1])
+length(LCM_te$Posterior_p[LCM_te$Class == 2])
+mean(LCM_te$Posterior_p[LCM_te$Class == 2])
+```
+
+#Posterior probabilities
+
+```{R}
+# Calculate means for each class
+class_means <- aggregate(Posterior_p ~ Class, data = LCM_te, FUN = mean)
+
+ggplot(LCM_te) +
+  geom_density(aes(x = Posterior_p, 
+                   fill = factor(Class), 
+                   group = Class), 
+               alpha = 0.3, size = 0.65, bw = 0.05) +
+  # Add dashed vertical lines for each class
+  geom_vline(data = class_means, aes(xintercept = Posterior_p, color = factor(Class)), linetype = "dashed") +
+  # Add labels for each class mean
+  geom_text(data = class_means, aes(x = Posterior_p, 
+                                    label = paste("", round(Posterior_p, 2)), 
+                                    y = 0), 
+            vjust = -0.5, hjust = 1, size = 6, color = "black") +  # Increase size parameter here
+  theme_bw() +
+  labs(x = "Posterior probability",
+       y = "Density",
+       #title = "Posterior probability distribution of class membership",
+       fill = "Class") +  # Legend title for fill aesthetic
+  scale_fill_manual(values = c("2" = "darkgreen", "1" = "orange"),  # Set colors if needed
+                    labels = c("2" = "Intensive", "1" = "Extensive")) +  # Rename classes in the legend
+  scale_color_manual(values = c("2" = "darkgreen", "1" = "orange"),  # Set colors to match fill
+                     labels = c("2" = "Intensive", "1" = "Extensive"), 
+                     guide = "none") +  # Remove color legend since it's redundant
+  theme(axis.title = element_text(face = "bold", size = 16),  # Bold axis titles
+        axis.text = element_text(face = "bold", size = 16),   # Bold axis text
+        legend.title = element_text(face = "bold", size = 16), # Bold legend title
+        legend.text = element_text(size = 14),  # Increase legend text size
+        legend.position = "top",                   # Position legend at the top
+        plot.title = element_text(hjust = 0.5, face = "bold"))  # Centered plot
+```
+
+### Classify as either intensive or extensive
+
+```{R}
+intensive <- LCM_te[LCM_te$Class == 2,]
+extensive <- LCM_te[LCM_te$Class == 1,]
+
+# Plot for intensive data
+
+plot_intensive <- ggplot(intensive, aes(x = TE_JLMS, fill = "Intensive")) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.07) +
+  theme_bw() +
+  labs(x = "", y = "Density", title = paste("Intensive (N =", length(intensive$TE_JLMS),")")) +
+  scale_fill_manual(values = "darkgreen", name = "") +
+  theme(axis.title.x = element_text(face = "bold", size = 12),
+        axis.title.y = element_text(face = "bold", size = 12),
+        axis.text = element_text(face = "bold", size = 12),
+        legend.position = "none",
+        plot.title = element_text(face = "bold", hjust = 0.5)) +
+  geom_vline(xintercept = mean(intensive$TE_JLMS), linetype = "dashed", color = "darkgreen") +
+  annotate("text", x = mean(intensive$TE_JLMS) - 0.01, y = -0.1, label = paste("Mean TE:", round(mean(intensive$TE_JLMS), 2)),
+           vjust = 1, color = "black", hjust = 1, size = 4)
+
+# Plot for extensive data
+
+plot_extensive <- ggplot(extensive, aes(x = TE_JLMS, fill = "Extensive")) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.07) +
+  theme_bw() +
+  labs(x = "TE", y = "Density", title = paste("Extensive (N =", length(extensive$TE_JLMS),")")) +
+  scale_fill_manual(values = "orange", name = "") +
+  theme(axis.title.x = element_text(face = "bold", size = 12),
+        axis.title.y = element_text(face = "bold", size = 12),
+        axis.text = element_text(face = "bold", size = 12),
+        legend.position = "none",
+        plot.title = element_text(face = "bold", hjust = 0.5)) +
+  geom_vline(xintercept = mean(extensive$TE_JLMS), linetype = "dashed", color = "orange") +
+  annotate("text", x = mean(extensive$TE_JLMS) - 0.01, y = -0.1, label = paste("Mean TE:", round(mean(extensive$TE_JLMS), 2)),
+           vjust = 1, color = "black", hjust = 1, size = 4)
+
+# Combine plots side by side with a common legend
+
+combined_plots <-  plot_grid(plot_intensive, plot_extensive, ncol = 1, align = "v", axis = "tb")
+
+# Display the combined plots
+combined_plots 
+
+
+
+##########################
+# Combine the datasets into one, adding a column to indicate the group
+intensive$Group <- "Intensive"
+extensive$Group <- "Extensive"
+
+combined_data <- rbind(intensive, extensive)
+
+# Define the color mappings
+group_colors <- c(
+  "Intensive" = "darkgreen",
+  "Extensive" = "orange"
+)
+
+# Plot combined data with mean annotations
+ggplot(combined_data, aes(x = TE_JLMS, fill = Group, color = Group)) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.07) +
+  theme_bw() +
+  labs(x = "TE", y = "Density", 
+       title = "TE Density for Intensive and Extensive Groups") +
+  scale_fill_manual(values = group_colors, name = "Category") +
+  scale_color_manual(values = group_colors, name = "Category") +
+  theme(axis.title.x = element_text(face = "bold", size = 20),
+        axis.title.y = element_text(face = "bold", size = 20),
+        axis.text.x = element_text(face = "bold", size = 16),
+        axis.text.y = element_text(face = "bold", size = 16),
+        legend.text = element_text(size = 16),
+        legend.title = element_text(face = "bold", size = 16),
+        legend.position = "top",
+        plot.title = element_blank()) +
+  geom_vline(data = aggregate(TE_JLMS ~ Group, data = combined_data, FUN = mean), 
+             aes(xintercept = TE_JLMS, color = Group), linetype = "dashed") +
+  geom_text(data = aggregate(TE_JLMS ~ Group, data = combined_data, FUN = mean), 
+            aes(x = TE_JLMS, y = 0, label = paste("", round(TE_JLMS, 2))), 
+            vjust = -0.5, hjust = 1, size = 6, color = "black")
+
+
+```
+
+#Meta-Frontier Procedure:
+
+#Predict Y_i\^{hat} for each group #Use results from the LCA
+
+```{R}
+# Assign Class from LCM_te to adopters
+adopters$Class <- LCM_te$Class
+
+# Create fitted values for nonadopters
+nonadopters$fitted <- fitted(nonadopters_sfa)
+
+# Prepare the adopters data frame for fitted values
+adopters$fitted_class_1 <- NA
+adopters$fitted_class_2 <- NA
+
+# Assign fitted values to adopters based on Class
+# Extensive is Class 1
+adopters$fitted_class_1[adopters$Class == 1] <- fitted(LCM)$mlFitted_c1[LCM_te$Class == 1]
+# Intensive is Class 2
+adopters$fitted_class_2[adopters$Class == 2] <- fitted(LCM)$mlFitted_c2[LCM_te$Class == 2]
+
+#Pool the TEs for all groups
+
+nonadopters$te <- efficiencies(nonadopters_sfa)$teJLMS
+#View(nonadopters)
+adopters$te <- LCM_te$TE_JLMS
+#View(adopters)
+
+#Pool the Y_i\^{hat} and TE for all groups
+
+
+merged_data_2 <- bind_rows(nonadopters, adopters)
+merged_data_2$merged_fitted <- NA
+merged_data_2$merged_fitted <- ifelse(is.na(merged_data_2$Class),merged_data_2$fitted,
+                             ifelse(merged_data_2$Class == 1,
+                                    merged_data_2$fitted_class_1,
+                                    ifelse(merged_data_2$Class == 2,
+                                           merged_data_2$fitted_class_2,
+                                           NA)))
+
+#View(merged_data_2)
+```
+
+#Estimate a metafrontier using the pooled Y_i\^{hat} for the whole data, including only covariates that influence TGRs
+
+```{R}
+#Stochastic Meta-frontier for all groups
+
+# Cobb-Douglas
+smfa_cobb <- sfacross(formula = merged_fitted ~
+                              log(Land_ha_mango...246)+
+                              I(asinh((`Qty_total_fertilizers_ml_g/ha...80`*10^-2)))+
+                             I(asinh((Qty_total_insecticides_ml_gha*10^-2)))+
+                             I(asinh((Qty_total_fungicide_g_ml*10^-2)))+
+                             log(`Qty_total_labour_mandays/ha...45`)+
+                              I(asinh((Qty_total_manure_gha...51*10^-2))),
+                          udist = 'tnormal', 
+                          method = 'mla', 
+                          logDepVar = TRUE,
+                     data = merged_data_2)
+summary(smfa_cobb)
+
+# Translog
+smfa <- sfacross(formula=merged_fitted ~
+                              Log_Land_ha_mango_norm+
+                              Asinh_Qty_total_fertilizers_hgha_norm+
+                              Asinh_Qty_total_fungicide_hgha_norm+
+                              Asinh_Qty_total_pesticides_hgha_norm+
+                              Log_Qty_total_labour_mandaysha_norm+
+                              Asinh_Qty_total_manure_hgha_norm+
+                              I(1/2*(Log_Land_ha_mango_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_fertilizers_hgha_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_fungicide_hgha_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_pesticides_hgha_norm)^2)+
+                              I(1/2*(Log_Qty_total_labour_mandaysha_norm)^2)+
+                              I(1/2*(Asinh_Qty_total_manure_hgha_norm)^2)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_fertilizers_hgha_norm)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_fungicide_hgha_norm)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_pesticides_hgha_norm)+
+                              I(Log_Land_ha_mango_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Log_Land_ha_mango_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Asinh_Qty_total_fungicide_hgha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Asinh_Qty_total_pesticides_hgha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Asinh_Qty_total_fertilizers_hgha_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Asinh_Qty_total_fungicide_hgha_norm*Asinh_Qty_total_pesticides_hgha_norm)+
+                              I(Asinh_Qty_total_fungicide_hgha_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Asinh_Qty_total_fungicide_hgha_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Asinh_Qty_total_pesticides_hgha_norm*Log_Qty_total_labour_mandaysha_norm)+
+                              I(Asinh_Qty_total_pesticides_hgha_norm*Asinh_Qty_total_manure_hgha_norm)+
+                              I(Log_Qty_total_labour_mandaysha_norm*Asinh_Qty_total_manure_hgha_norm),
+                          udist = 'tnormal', 
+                          method = 'bhhh', 
+                          logDepVar = TRUE,
+                     data = merged_data_2)
+summary(smfa)
+```
+
+# Generalised Likelihood Ratio (GLR) test for homogeneous technology and Likelihood Ratio (LR) test for functional form
+
+```{R}
+library(stringr)
+
+cobb_logLik <- logLik(smfa_cobb)
+cobb_logLik <- str_extract(cobb_logLik , "-?\\d+\\.\\d+")
+cobb_logLik <- as.numeric(cobb_logLik)
+cobb_logLik
+
+nonadopter_logLik <- logLik(nonadopters_sfa)
+LCM_logLik <- logLik(LCM)
+Meta_logLik <- logLik(smfa)
+
+nonadopter_logLik  <- str_extract(nonadopter_logLik , "-?\\d+\\.\\d+")
+LCM_logLik  <- str_extract(LCM_logLik , "-?\\d+\\.\\d+")
+Meta_logLik <- str_extract(Meta_logLik , "-?\\d+\\.\\d+")
+
+# Convert the extracted value to numeric
+nonadopter_logLik <- as.numeric(nonadopter_logLik)
+nonadopter_logLik 
+LCM_logLik <- as.numeric(LCM_logLik)
+LCM_logLik
+Meta_logLik <- as.numeric(Meta_logLik)
+Meta_logLik
+
+# Likelihood ratio test
+lrt <- -2 * ( cobb_logLik - Meta_logLik)
+lrt
+# Chi-square test for significance
+p_value <- pchisq(lrt, df = 41, lower.tail = FALSE)
+p_value
+# Check if the p-value is significant
+if (p_value < 0.05) {
+  cat("Reject H0: The Translog specification is preferred (p-value:", p_value, ")\n")
+} else {
+  cat("Fail to reject H0: The Cobb-Douglas specification is sufficient (p-value:", p_value, ")\n")
+}
+
+
+# Generalised likelihood ratio test
+glrt <- -2 * ( nonadopter_logLik + LCM_logLik - Meta_logLik)
+glrt
+# Chi-square test for significance
+p_value <- pchisq(glrt, df = 41, lower.tail = FALSE)
+p_value
+
+# Check if the p-value is significant
+if (p_value < 0.05) {
+  cat("Reject H0: The metafrontier provides a significantly better fit compared to the group-specific frontiers (p-value:", p_value, ")\n")
+} else {
+  cat("Fail to reject H0: The metafrontier does not provide a significantly better fit compared to the group-specific frontiers (p-value:", p_value, ")\n")
+}
+```
+
+#Harvest TGRs for all groups
+
+```{R}
+merged_data_2$tgr <- efficiencies(smfa)$teJLMS
+#merged_data_2$tgr
+#View(merged_data_2)
+
+#Plot TGRs for all groups
+
+merged_data_2$tgr <- as.numeric(unlist(merged_data_2$tgr))
+plot_tgr <- ggplot(merged_data_2) +
+  geom_density(aes(x = tgr, fill = "All"), alpha = 0.3, size = 0.65, bw = 0.07) +
+  theme_bw() +
+  labs(x = "TGR", y = "Density", title = paste("Pooled (N =",length(as.numeric(unlist(merged_data_2$tgr))),")")) +
+  scale_fill_manual(values = "red", name = "") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"),  # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+geom_vline(xintercept = mean(merged_data_2$tgr), linetype = "dashed", color = "red") +
+  annotate("text", x = mean(merged_data_2$tgr) - 0.01, y = -0.1, label = paste("", round(mean(merged_data_2$tgr), 2)),
+           vjust = 1, color = "black", hjust = 1, size = 3)
+  plot_tgr
+```
+
+#TGR for nonadopters
+
+```{R}
+nonadopters_tgr <- as.numeric(unlist(merged_data_2$tgr[merged_data_2$adoption == 0]))
+# Check the structure of nonadopters_tgr to understand its format
+nonadopters_tgr <- as.numeric(nonadopters_tgr[!is.na(nonadopters_tgr)])
+nonadopters_df <- data.frame(nonadopters_tgr)
+suppressMessages(attach(nonadopters_df))
+plot_nonadopters_tgr <- ggplot(nonadopters_df) +
+  geom_density(aes(x = nonadopters_tgr, fill = "Non-adopters"), alpha = 0.3, size = 0.65, bw = 0.07) +
+  theme_bw() +
+  labs(x = "TGR", y = "Density", title = paste("Non-adopters (N =",length(as.numeric(unlist(merged_data_2$tgr[merged_data_2$adoption == 0]))),")")) +
+  scale_fill_manual(values = "black", name = "") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"),  # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+  geom_vline(xintercept = mean(merged_data_2$tgr[merged_data_2$adoption == 0]), linetype = "dashed", color = "black") +
+  annotate("text", x = mean(merged_data_2$tgr[merged_data_2$adoption == 0]) - 0.01, y = -0.1, label = paste("", round(mean(merged_data_2$tgr[merged_data_2$adoption == 0]), 2)),
+           vjust = 1, color = "black", hjust = 1, size = 3)
+plot_nonadopters_tgr
+```
+
+#TGR for adopters
+
+```{R}
+adopters_tgr <- as.numeric(unlist(merged_data_2$tgr[merged_data_2$adoption == 1]))
+# Check the structure of adopters_tgr to understand its format
+str(adopters_tgr)
+adopters_tgr <- as.numeric(adopters_tgr[!is.na(adopters_tgr)])
+adopters_df <- data.frame(adopters_tgr)
+suppressMessages(attach(adopters_df))
+plot_adopters_tgr <- ggplot(adopters_df) +
+  geom_density(aes(x = adopters_tgr, fill = "Adopters"), alpha = 0.3, size = 0.65, bw = 0.07) +
+  theme_bw() +
+  labs(x = "TGR", y = "Density", title = paste("Adopters (N =",length(as.numeric(unlist(merged_data_2$tgr[merged_data_2$adoption == 1]))),")")) +
+  scale_fill_manual(values = "darkgreen", name = "") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"),  # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+  geom_vline(xintercept = mean(merged_data_2$tgr[merged_data_2$adoption == 1]), linetype = "dashed", color = "darkgreen") +
+  annotate("text", x = mean(merged_data_2$tgr[merged_data_2$adoption == 1]) - 0.01, y = -0.1, label = paste("", round(mean(merged_data_2$tgr[merged_data_2$adoption == 1]), 2)),
+           vjust = 1, color = "black", hjust = 1, size = 3)
+plot_adopters_tgr
+```
+
+```{R}
+# Combine adopters and nonadopters datasets
+adopters_nonadopters_tgr <- rbind(
+  mutate(subset(merged_data_2, adoption == 0)[, "tgr"], group = paste("Non-adopters (N =", sum(merged_data_2$adoption == 0), ")")),
+  mutate(subset(merged_data_2, adoption == 1)[, "tgr"], group = paste("Adopters (N =", sum(merged_data_2$adoption == 1), ")"))
+)
+
+# Calculate mean TGR scores for adopters and nonadopters
+mean_adopters_nonadopters_tgr <- adopters_nonadopters_tgr %>%
+  group_by(group) %>%
+  summarize(mean_tgr = mean(tgr))
+
+# Plot combined data with mean annotations
+combined_adopters_nonadopters_plot <- ggplot(adopters_nonadopters_tgr, aes(x = tgr, fill = group)) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.07) +
+  scale_fill_manual(values = c("darkgreen", "black"), name = "") +
+  geom_text(data = mean_adopters_nonadopters_tgr, aes(label = paste("", round(mean_tgr, 2)), x = mean_tgr, y = -0.1), vjust = 1, color = c("darkgreen", "black"), hjust = 1, size = 3) +
+  geom_vline(data = mean_adopters_nonadopters_tgr, aes(xintercept = mean_tgr), linetype = "dashed", color = c("darkgreen", "black")) +  # Add vertical lines
+  theme_bw() +
+  labs(x = "TGR", y = "Density", 
+       title = "Distribution of TGR for adopters and nonadopters") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text.x = element_text(face = "bold"),
+        axis.text.y = element_text(face = "bold"),
+        legend.text = element_text(face = "bold"),
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        legend.position = "top")
+
+combined_adopters_nonadopters_plot
+```
+
+#TGR for intensive adopters
+
+```{R}
+intensive_tgr <- as.numeric(unlist(merged_data_2$tgr[merged_data_2$Class == 2]))
+# Check the structure of intensive_tgr to understand its format
+intensive_tgr <- as.numeric(intensive_tgr[!is.na(intensive_tgr)])
+intensive_df <- data.frame(intensive_tgr)
+
+plot_intensive_tgr <- ggplot(intensive_df) +
+  geom_density(aes(x = intensive_tgr, fill = "Intensive adopters"), alpha = 0.3, size = 0.65, bw = 0.07) +
+  theme_bw() +
+  labs(x = "TGR", y = "Density", title = paste("Intensive (N =",length(intensive_tgr),")")) +
+  scale_fill_manual(values = "darkgreen", name = "") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"),  # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+geom_vline(xintercept = mean(intensive_tgr), linetype = "dashed", color = "darkgreen") +
+  annotate("text", x = mean(intensive_tgr) - 0.01, y = -0.1, label = paste("", round(mean(intensive_tgr), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
+  plot_intensive_tgr
+
+```
+
+#TGR for extensive adopters
+
+```{R}
+extensive_tgr <- as.numeric(unlist(merged_data_2$tgr[merged_data_2$Class == 1]))
+# Check the structure of extensive_tgr to understand its format
+str(extensive_tgr)
+extensive_tgr <- as.numeric(extensive_tgr[!is.na(extensive_tgr)])
+extensive_df <- data.frame(extensive_tgr)
+
+plot_extensive_tgr <- ggplot(extensive_df) +
+  geom_density(aes(x = extensive_tgr, fill = "Extensive adopters"), alpha = 0.3, size = 0.65, bw = 0.07) +
+  theme_bw() +
+  labs(x = "TGR", y = "Density", title = paste("Extensive (N =",length(extensive_tgr),")")) +
+  scale_fill_manual(values = "orange", name = "") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"),  # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+  geom_vline(xintercept = mean(extensive_tgr), linetype = "dashed", color = "orange") +
+  annotate("text", x = mean(extensive_tgr) - 0.01, y = -0.1, label = paste("", round(mean(extensive_tgr), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
+plot_extensive_tgr
+```
+
+```{R}
+extensive_intensive_tgr <- rbind(
+  mutate(subset(merged_data_2, Class == 1)[, "tgr"], group = paste("Extensive (N =", sum(!is.na(merged_data_2$tgr[merged_data_2$Class == 1])), ")")),
+  mutate(subset(merged_data_2, Class == 2)[, "tgr"], group = paste("Intensive (N =", sum(!is.na(merged_data_2$tgr[merged_data_2$Class == 2])), ")"))
+)
+
+# Calculate mean TGR scores for intensive and extensive adopters
+mean_extensive_intensive_tgr <- extensive_intensive_tgr %>%
+  group_by(group) %>%
+  summarize(mean_tgr = mean(tgr))
+
+# Plot combined data with mean annotations
+combined_extensive_intensive_plot <- ggplot(extensive_intensive_tgr, aes(x = tgr, fill = group)) +
+  geom_density(alpha = 0.4, size = 0.65, bw = 0.07) +
+  scale_fill_manual(values = c("orange","darkgreen"), name = "") +
+  geom_text(data = mean_extensive_intensive_tgr, aes(label = paste("", round(mean_tgr, 2)), x = mean_tgr, y = -0.1), vjust = 1, color = c("orange", "darkgreen"), hjust = 1, size = 3) +
+  geom_vline(data = mean_extensive_intensive_tgr, aes(xintercept = mean_tgr), linetype = "dashed", color = c("orange", "darkgreen")) +  # Add vertical lines
+  theme_bw() +
+  labs(x = "TGR", y = "Density", 
+       title = "Distribution of TGR for extensive and intensive adopters") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text.x = element_text(face = "bold"),
+        axis.text.y = element_text(face = "bold"),
+        legend.text = element_text(face = "bold"),
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        legend.position = "top")
+
+combined_extensive_intensive_plot
+```
+
+# Non-adopters, extensive and intensive adopters TGR plot
+
+```{R}
+all_three_tgr <- rbind(
+  mutate(subset(merged_data_2, Class == 1)[, "tgr"], group = paste("Extensive (N =", sum(!is.na(merged_data_2$tgr[merged_data_2$Class == 1])), ")")),
+  mutate(subset(merged_data_2, Class == 2)[, "tgr"], group = paste("Intensive (N =", sum(!is.na(merged_data_2$tgr[merged_data_2$Class == 2])), ")")),
+  mutate(subset(merged_data_2, adoption == 0)[, "tgr"], group = paste("Non-adopters (N =", sum(!is.na(merged_data_2$tgr[merged_data_2$adoption == 0])), ")"))
+)
+
+# Calculate mean TGR scores for non-adopters, intensive and extensive adopters
+mean_all_three_tgr <- all_three_tgr %>%
+  group_by(group) %>%
+  summarize(mean_tgr = mean(tgr))
+
+# Plot combined data with mean annotations
+combined_all_three_plot <- ggplot(all_three_tgr, aes(x = tgr, fill = group)) +
+  geom_density(alpha = 0.4, size = 0.65, bw = 0.1) +
+  scale_fill_manual(values = c("orange","darkgreen","black"), name = "") +
+  geom_text(data = mean_all_three_tgr, aes(label = paste("", round(mean_tgr, 2)), x = mean_tgr, y = -0.1), vjust = 1, color = c("orange", "darkgreen", "black"), hjust = 1, size = 6) +
+  geom_vline(data = mean_all_three_tgr, aes(xintercept = mean_tgr), linetype = "dashed", color = c("orange", "darkgreen", "black")) +  # Add vertical lines
+  theme_bw() +
+  labs(x = "TGR", y = "Density",
+       title = "") +
+  theme(axis.title.x = element_text(face = "bold", size = 16),
+        axis.title.y = element_text(face = "bold", size = 16),
+        axis.text.x = element_text(face = "bold", size = 16),
+        axis.text.y = element_text(face = "bold", size = 16),
+        legend.text = element_text(face = "bold", size = 16 ),
+        plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+        legend.position = "top")
+
+combined_all_three_plot
+```
+
+------------------------------------------------------------------------
+
+# Harvest MTEs for all groups
+
+```{R}
+merged_data_2$mte <- efficiencies(smfa)$teJLMS*merged_data_2$te
+#merged_data_2$mte
+#View(merged_data_2)
+
+# Plot MTEs for all groups
+
+merged_data_2$mte <- as.numeric(unlist(merged_data_2$mte))
+plot_mte <- ggplot(merged_data_2) +
+  geom_density(aes(x = mte), fill = "red", alpha = 0.3, size = 0.65, bw = 0.07) +
+  theme_bw() +
+  labs(x = "MTE", y = "Density", title = paste("Pooled (N =",length(as.numeric(unlist(merged_data_2$mte))),")")) +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"), # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+geom_vline(xintercept = mean(merged_data_2$mte), linetype = "dashed", color = "red") +
+  annotate("text", x = mean(merged_data_2$mte) - 0.01, y = -0.1, label = paste("", round(mean(merged_data_2$mte), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
+  plot_mte
+```
+
+# MTE for nonadopters
+
+```{R}
+nonadopters_mte <- as.numeric(unlist(merged_data_2$mte[merged_data_2$adoption == 0]))
+# Check the structure of nonadopters_mte to understand its format
+str(nonadopters_mte)
+nonadopters_mte <- as.numeric(nonadopters_mte[!is.na(nonadopters_mte)])
+nonadopters_df <- data.frame(nonadopters_mte)
+
+plot_nonadopters_mte <- ggplot(nonadopters_df) +
+  geom_density(aes(x = nonadopters_mte, fill = "Non-adopters"), alpha = 0.3, size = 0.65, bw = 0.07) +
+  theme_bw() +
+  labs(x = "MTE", y = "Density", title = paste("Non-adopters (N =",length(as.numeric(unlist(merged_data_2$mte[merged_data_2$adoption == 0]))),")")) +
+  scale_fill_manual(values = "black", name = "") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"), # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+geom_vline(xintercept = mean(merged_data_2$mte[merged_data_2$adoption == 0]), linetype = "dashed", color = "black") +
+  annotate("text", x = mean(merged_data_2$mte[merged_data_2$adoption == 0]) - 0.01, y = -0.1, label = paste("", round(mean(merged_data_2$mte[merged_data_2$adoption == 0]), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
+  plot_nonadopters_mte
+```
+
+# MTE for adopters
+
+```{R}
+adopters_mte <- as.numeric(unlist(merged_data_2$mte[merged_data_2$adoption == 1]))
+# Check the structure of adopters_mte to understand its format
+str(adopters_mte)
+adopters_mte <- as.numeric(adopters_mte[!is.na(adopters_mte)])
+adopters_df <- data.frame(adopters_mte)
+
+plot_adopters_mte <- ggplot(adopters_df) +
+  geom_density(aes(x = adopters_mte, fill = "Adopters"), alpha = 0.3, size = 0.65, bw = 0.07) +
+  theme_bw() +
+  labs(x = "MTE", y = "Density", title = paste("Adopters (N =",length(as.numeric(unlist(merged_data_2$mte[merged_data_2$adoption == 1]))),")")) +
+  scale_fill_manual(values = "darkgreen", name = "") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"), # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+geom_vline(xintercept = mean(merged_data_2$mte[merged_data_2$adoption == 1]), linetype = "dashed", color = "darkgreen") +
+  annotate("text", x = mean(merged_data_2$mte[merged_data_2$adoption == 1]) - 0.01, y = -0.1, label = paste("", round(mean(merged_data_2$mte[merged_data_2$adoption == 1]), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
+  plot_adopters_mte
+```
+
+```{R}
+# Combine adopters and non-adopters datasets
+adopters_nonadopters_mte <- rbind(
+  mutate(subset(merged_data_2, adoption == 0)[, "mte"], group = paste("Non-adopters (N =", sum(merged_data_2$adoption == 0), ")")),
+  mutate(subset(merged_data_2, adoption == 1)[, "mte"], group = paste("Adopters (N =", sum(merged_data_2$adoption == 1), ")"))
+)
+
+# Calculate mean MTE scores for adopters and non-adopters
+mean_adopters_nonadopters_mte <- adopters_nonadopters_mte %>%
+  group_by(group) %>%
+  summarize(mean_mte = mean(mte))
+
+# Plot combined data with mean annotations
+combined_adopters_nonadopters_mte_plot <- ggplot(adopters_nonadopters_mte, aes(x = mte, fill = group)) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.07) +
+  scale_fill_manual(values = c("darkgreen", "black"), name = "") +
+  geom_text(data = mean_adopters_nonadopters_mte, aes(label = paste("", round(mean_mte, 2)), x = mean_mte, y = -0.1), vjust = 1, color = c("darkgreen", "black"), hjust = 1, size = 3) +
+  geom_vline(data = mean_adopters_nonadopters_mte, aes(xintercept = mean_mte), linetype = "dashed", color = c("darkgreen", "black")) +  # Add vertical lines
+  theme_bw() +
+  labs(x = "MTE", y = "Density", 
+       title = "Distribution of MTE for adopters and non-adopters") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text.x = element_text(face = "bold"),
+        axis.text.y = element_text(face = "bold"),
+        legend.text = element_text(face = "bold"),
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        legend.position = "top")
+
+combined_adopters_nonadopters_mte_plot
+```
+
+# MTE for extensive adopters
+
+```{R}
+extensive_mte <- as.numeric(unlist(merged_data_2$mte[merged_data_2$Class == 1]))
+# Check the structure of extensive_mte to understand its format
+extensive_mte <- as.numeric(extensive_mte[!is.na(extensive_mte)])
+extensive_df <- data.frame(extensive_mte)
+
+plot_extensive_mte <- ggplot(extensive_df) +
+  geom_density(aes(x = extensive_mte, fill = "Extensive adopters"), alpha = 0.3, size = 0.65, bw = 0.07) +
+  theme_bw() +
+  labs(x = "MTE", y = "Density", title = paste("Extensive (N =",length(extensive_mte),")")) +
+  scale_fill_manual(values = "orange", name = "") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"), # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+geom_vline(xintercept = mean(extensive_mte), linetype = "dashed", color = "orange") +
+  annotate("text", x = mean(extensive_mte) - 0.01, y = -0.1, label = paste("", round(mean(extensive_mte), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
+  plot_extensive_mte
+```
+
+# MTE for intensive adopters
+
+```{R}
+intensive_mte <- as.numeric(unlist(merged_data_2$mte[merged_data_2$Class == 2]))
+# Check the structure of intensive_mte to understand its format
+intensive_mte <- as.numeric(intensive_mte[!is.na(intensive_mte)])
+intensive_df <- data.frame(intensive_mte)
+
+plot_intensive_mte <- ggplot(intensive_df) +
+  geom_density(aes(x = intensive_mte, fill = "Intensive adopters"), alpha = 0.3, size = 0.65, bw = 0.07) +
+  theme_bw() +
+  labs(x = "MTE", y = "Density", title = paste("Intensive (N =",length(intensive_mte),")")) +
+  scale_fill_manual(values = "darkgreen", name = "") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"), # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+geom_vline(xintercept = mean(intensive_mte), linetype = "dashed", color = "darkgreen") +
+  annotate("text", x = mean(intensive_mte) - 0.01, y = -0.1, label = paste("", round(mean(intensive_mte), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
+plot_intensive_mte
+```
+
+# Extensive and intensive MTE
+
+```{R}
+extensive_intensive_mte <- rbind(
+  mutate(subset(merged_data_2, Class == 1)[, "mte"], group = paste("Extensive (N =", sum(!is.na(merged_data_2$mte[merged_data_2$Class == 1])), ")")),
+  mutate(subset(merged_data_2, Class == 2)[, "mte"], group = paste("Intensive (N =", sum(!is.na(merged_data_2$mte[merged_data_2$Class == 2])), ")"))
+)
+
+# Calculate mean TGR scores for intensive and extensive adopters
+mean_extensive_intensive_mte <- extensive_intensive_mte %>%
+  group_by(group) %>%
+  summarize(mean_mte = mean(mte))
+
+# Plot combined data with mean annotations
+combined_extensive_intensive_plot_mte <- ggplot(extensive_intensive_mte, aes(x = mte, fill = group)) +
+  geom_density(alpha = 0.4, size = 0.65, bw = 0.07) +
+  scale_fill_manual(values = c("orange","darkgreen"), name = "") +
+  geom_text(data = mean_extensive_intensive_mte, aes(label = paste("", round(mean_mte, 2)), x = mean_mte, y = -0.1), vjust = 1, color = c("orange", "darkgreen"), hjust = 1, size = 3) +
+  geom_vline(data = mean_extensive_intensive_mte, aes(xintercept = mean_mte), linetype = "dashed", color = c("orange", "darkgreen")) +  # Add vertical lines
+  theme_bw() +
+  labs(x = "MTE", y = "Density", 
+       title = "Distribution of MTE for extensive and intensive adopters") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text.x = element_text(face = "bold"),
+        axis.text.y = element_text(face = "bold"),
+        legend.text = element_text(face = "bold"),
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        legend.position = "top")
+
+combined_extensive_intensive_plot_mte
+```
+
+#Non-adopters, extensive and intensive adopters
+
+```{R}
+# Replace tgr with mte in all places
+all_three_mte <- rbind(
+  mutate(subset(merged_data_2, Class == 1)[, "mte"], group = paste("Extensive (N =", sum(!is.na(merged_data_2$mte[merged_data_2$Class == 1])), ")")),
+  mutate(subset(merged_data_2, Class == 2)[, "mte"], group = paste("Intensive (N =", sum(!is.na(merged_data_2$mte[merged_data_2$Class == 2])), ")")),
+  mutate(subset(merged_data_2, adoption == 0)[, "mte"], group = paste("Non-adopters (N =", sum(!is.na(merged_data_2$mte[merged_data_2$adoption == 0])), ")"))
+)
+
+# Calculate mean MTE scores for non-adopters, intensive and extensive adopters
+mean_all_three_mte <- all_three_mte %>%
+  group_by(group) %>%
+  summarize(mean_mte = mean(mte))
+
+# Plot combined data with mean annotations
+combined_all_three_mte_plot <- ggplot(all_three_mte, aes(x = mte, fill = group)) +
+  geom_density(alpha = 0.4, size = 0.65, bw = 0.1) +
+  scale_fill_manual(values = c("orange","darkgreen","black"), name = "") +
+  geom_text(data = mean_all_three_mte, aes(label = paste("", round(mean_mte, 2)), x = mean_mte, y = -0.1), vjust = 1, color = c("orange","darkgreen","black"), hjust = 1, size = 6) +
+  geom_vline(data = mean_all_three_mte, aes(xintercept = mean_mte), linetype = "dashed", color = c("orange","darkgreen","black")) +  # Add vertical lines
+  theme_bw() +
+  labs(x = "MTE", y = "Density", 
+       title = "") +
+  theme(axis.title.x = element_text(face = "bold", size = 16),
+        axis.title.y = element_text(face = "bold", size = 16),
+        axis.text.x = element_text(face = "bold", size = 16),
+        axis.text.y = element_text(face = "bold", size = 16),
+        legend.text = element_text(face = "bold", size = 16),
+        plot.title = element_text(face = "bold", hjust = 0.5, , size = 0),
+        legend.position = "top")
+
+combined_all_three_mte_plot
+```
+
+```{R}
+#Validation of LCA
+#Check mean intensity for the Classes
+mean(merged_data_2$intensity)
+mean(subset(merged_data_2, adoption == 0)$intensity)
+mean(subset(merged_data_2, adoption == 1)$intensity)
+mean(subset(merged_data_2, Class == 1)$intensity)
+mean(subset(merged_data_2, Class == 2)$intensity)
+
+#Distribution of TE, TGR, and MTE]
+#Group frontiers
+
+#Pooled
+summary(all_te$TE_JLMS)
+sd(all_te$TE_JLMS)
+
+#Non-adopters
+summary(nonadopters_te$TE_JLMS)
+sd(nonadopters_te$TE_JLMS)
+
+#Adopters
+summary(adopters_te$TE_JLMS)
+sd(adopters_te$TE_JLMS)
+
+#Extensive
+summary(extensive$TE_JLMS)
+sd(extensive$TE_JLMS)
+
+#Intensive
+summary(intensive$TE_JLMS)
+sd(intensive$TE_JLMS)
+
+#Metafrontier
+
+#Pooled
+#TGR
+summary(merged_data_2$tgr)
+sd(merged_data_2$tgr)
+
+summary(merged_data_2$mte)
+sd(merged_data_2$mte)
+
+#Non-adopters
+#TGR
+summary(nonadopters_tgr)
+sd(nonadopters_tgr)
+
+#MTE
+summary(nonadopters_mte)
+sd(nonadopters_mte)
+
+#Adopters
+#TGR
+summary(adopters_tgr)
+sd(adopters_tgr)
+
+#MTE
+summary(adopters_mte)
+sd(adopters_mte)
+
+#Extensive
+#TGR
+summary(extensive_tgr)
+sd(extensive_tgr)
+
+#MTE
+summary(extensive_mte)
+sd(extensive_mte)
+
+#Intensive
+#TGR
+summary(intensive_tgr)
+sd(intensive_tgr)
+
+#MTE
+summary(intensive_mte)
+sd(intensive_mte)
+```
+
+```{R}
+# Install and load the writexl package
+# Export merged_data_2 to an Excel file
+write_xlsx(merged_data_2, "merged_data_2.xlsx")
+```
 

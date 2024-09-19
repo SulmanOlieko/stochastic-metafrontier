@@ -1,0 +1,1291 @@
+---
+title: "Heterogeneous environmentally-adjusted efficiency effects of agro-ecological pest management transition and intensification: A latent class stochastic metafrontier approach"
+author: "Sulman Olieko Owili"
+email: "S.Owili@cgiar.org"
+date: "`r Sys.Date()`"
+output: pdf_document 
+format:
+  pdf:
+    geometry:
+      - top=30mm
+      - left=20mm
+    fontfamily: libertinus
+    fontsize: 7pt
+editor: visual
+---
+
+## Clear the environment
+
+```{r setup, set-wd, include=FALSE}
+rm(list=ls())
+#dev.off()
+gc()
+
+## Install the required packages
+
+#install.packages(c("devtools", "sfaR", "ggplot2", "cowplot","patchwork", "readxl", "dplyr", "gridExtra", "writexl"))
+library(devtools)
+library(sfaR)
+library(ggplot2)
+library(cowplot)
+library(patchwork)
+library(readxl)
+library(dplyr)
+library(gridExtra)
+library(writexl)
+
+knitr::opts_chunk$set(echo = TRUE)
+setwd("~/Desktop/Manuscript 2")
+getwd()
+
+## Import, view and attach the data
+
+library(readxl)
+data_2 <- read_excel("~/Desktop/Manuscript 2/merged_data_2.xlsx", 
+    sheet = "Sheet1")
+#View(data_2)
+suppressMessages(attach(data_2))
+```
+
+#Standard SFA for all farmers
+
+```{R}
+all_sfa_ee <- sfacross(formula=log_net_GVA_KESha_norm ~
+                              log_total_GWP_kg_norm+
+                              asinh_Nutrient_deficit_N_dg_norm+
+                              asinh_Nutrient_deficit_P_dg_norm+
+                              asinh_toxicity_qty_ai_pesticides_dg_norm+
+                              log_total_energy_balance_MJ_norm+
+                              log_specialisation_norm+
+                              I(1/2*(log_total_GWP_kg_norm)^2)+
+                              I(1/2*(asinh_Nutrient_deficit_N_dg_norm)^2)+
+                              I(1/2*(asinh_Nutrient_deficit_P_dg_norm)^2)+
+                              I(1/2*(asinh_toxicity_qty_ai_pesticides_dg_norm)^2)+
+                              I(1/2*(log_total_energy_balance_MJ_norm)^2)+ 
+                              I(1/2*(log_specialisation_norm)^2)+  
+                              I(log_total_GWP_kg_norm * asinh_Nutrient_deficit_N_dg_norm) +
+                              I(log_total_GWP_kg_norm * asinh_Nutrient_deficit_P_dg_norm) +
+                              I(log_total_GWP_kg_norm * asinh_toxicity_qty_ai_pesticides_dg_norm) +
+                             I(log_total_GWP_kg_norm * log_total_energy_balance_MJ_norm) +
+                              I(log_total_GWP_kg_norm * log_specialisation_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * asinh_Nutrient_deficit_P_dg_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * asinh_toxicity_qty_ai_pesticides_dg_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * log_total_energy_balance_MJ_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * log_specialisation_norm) +
+                              I(asinh_Nutrient_deficit_P_dg_norm * asinh_toxicity_qty_ai_pesticides_dg_norm) +
+                              I(asinh_Nutrient_deficit_P_dg_norm * log_total_energy_balance_MJ_norm) +
+                              I(asinh_Nutrient_deficit_P_dg_norm * log_specialisation_norm) +
+                              I(asinh_toxicity_qty_ai_pesticides_dg_norm * log_total_energy_balance_MJ_norm) +
+                              I(asinh_toxicity_qty_ai_pesticides_dg_norm * log_specialisation_norm)+
+                              I(log_total_energy_balance_MJ_norm * log_specialisation_norm),
+                 udist = 'hnormal', 
+                 method = 'nr',
+                 itermax = 200000L,
+                 logDepVar = TRUE,
+                 data = data_2)
+summary(all_sfa_ee)
+```
+
+## Harvest EE for all farmers
+
+```{R}
+all_ee <- data.frame(efficiencies(all_sfa_ee))
+all_ee <- all_ee |>
+  rename(EE_JLMS = teJLMS,
+         EE_BC = teBC,
+         eeu_i = u)
+#View(all_ee)
+suppressMessages(attach(all_ee))
+
+# Plot TE for all data
+
+plot_all_ee <- ggplot(all_ee, aes(x = EE_JLMS)) +
+  geom_density(color = "red", size = 0.65, bw = 0.02) +
+  theme_bw() +
+  labs(x = "EE", y = "Density", 
+       title = paste("Pooled (N =", length(all_ee$EE_JLMS), ")")) +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"),
+        legend.position = "none",
+        plot.title = element_text(face = "bold", hjust = 0.5)) +
+  geom_vline(xintercept = mean(all_ee$EE_JLMS), linetype = "dashed", color = "red") +
+  annotate("text", x = mean(all_ee$EE_JLMS) - 0.01, y = -0.1, label = paste("", round(mean(all_ee$EE_JLMS), 2)), 
+           vjust = 1, color = "black", hjust = 1, size = 3)
+
+plot_all_ee
+
+```
+
+```{R}
+data_2$all_EE <- all_ee$EE_JLMS
+
+length(data_2$all_EE)
+mean(all_ee$EE_JLMS)
+
+length(data_2$all_EE[data_2$adoption == 0])
+mean(data_2$all_EE[data_2$adoption == 0])
+
+length(data_2$all_EE[data_2$adoption == 1])
+mean(data_2$all_EE[data_2$adoption == 1])
+```
+
+## Subset the data to get nonadopters
+
+```{R}
+nonadopters_data_ee <- data_2[data_2$adoption == 0,]
+#View(nonadopters_data_ee)
+suppressMessages(attach(nonadopters_data_ee))
+
+##Standard SFA for nonadopters
+nonadopters_sfa_ee <- sfacross(formula=log_net_GVA_KESha_norm ~
+                              log_total_GWP_kg_norm+
+                              asinh_Nutrient_deficit_N_dg_norm+
+                              asinh_Nutrient_deficit_P_dg_norm+
+                              asinh_toxicity_qty_ai_pesticides_dg_norm+
+                              log_total_energy_balance_MJ_norm+
+                              log_specialisation_norm+
+                              I(1/2*(log_total_GWP_kg_norm)^2)+
+                              I(1/2*(asinh_Nutrient_deficit_N_dg_norm)^2)+
+                              I(1/2*(asinh_Nutrient_deficit_P_dg_norm)^2)+
+                              I(1/2*(asinh_toxicity_qty_ai_pesticides_dg_norm)^2)+
+                              I(1/2*(log_total_energy_balance_MJ_norm)^2)+ 
+                              I(1/2*(log_specialisation_norm)^2)+  
+                              I(log_total_GWP_kg_norm * asinh_Nutrient_deficit_N_dg_norm) +
+                              I(log_total_GWP_kg_norm * asinh_Nutrient_deficit_P_dg_norm) +
+                              I(log_total_GWP_kg_norm * asinh_toxicity_qty_ai_pesticides_dg_norm) +
+                             I(log_total_GWP_kg_norm * log_total_energy_balance_MJ_norm) +
+                              I(log_total_GWP_kg_norm * log_specialisation_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * asinh_Nutrient_deficit_P_dg_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * asinh_toxicity_qty_ai_pesticides_dg_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * log_total_energy_balance_MJ_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * log_specialisation_norm) +
+                              I(asinh_Nutrient_deficit_P_dg_norm * asinh_toxicity_qty_ai_pesticides_dg_norm) +
+                              I(asinh_Nutrient_deficit_P_dg_norm * log_total_energy_balance_MJ_norm) +
+                              I(asinh_Nutrient_deficit_P_dg_norm * log_specialisation_norm) +
+                              I(asinh_toxicity_qty_ai_pesticides_dg_norm * log_total_energy_balance_MJ_norm) +
+                              I(asinh_toxicity_qty_ai_pesticides_dg_norm * log_specialisation_norm)+
+                              I(log_total_energy_balance_MJ_norm * log_specialisation_norm),
+                 udist = 'hnormal', 
+                 method = 'bhhh', 
+                 logDepVar = TRUE,
+                 itermax = 10000L,
+                 data = nonadopters_data_ee)
+summary(nonadopters_sfa_ee)
+```
+
+## Harvest EE for nonadopters
+
+```{R}
+nonadopters_ee <- data.frame(efficiencies(nonadopters_sfa_ee))
+nonadopters_ee <- nonadopters_ee |>
+  rename(EE_JLMS = teJLMS,
+         EE_BC = teBC,
+         eeu_i = u)
+#View(nonadopters_te)
+suppressMessages(attach(nonadopters_ee))
+
+# Plot for non-adopters data
+plot_nonadopters_ee <- ggplot(nonadopters_ee, aes(x = EE_JLMS)) +
+  geom_density(color = "black", size = 0.65, bw = 0.02) +
+  theme_bw() +
+  labs(x = "EE", y = "Density", 
+       title = paste("Non-adopters (N =", length(nonadopters_ee$EE_JLMS), ")")) +
+  scale_fill_manual(values = "black", name = "Category") +
+  theme(axis.title.x = element_text(face = "bold", size = 12),
+        axis.title.y = element_text(face = "bold", size = 12),
+        axis.text = element_text(face = "bold", size = 12),
+        legend.position = "none",
+        plot.title = element_text(face = "bold", hjust = 0.5)) +
+  geom_vline(xintercept = mean(nonadopters_ee$EE_JLMS), linetype = "dashed", color = "black") +
+  annotate("text", x = mean(nonadopters_ee$EE_JLMS) - 0.01, y = -0.1, label = paste("", round(mean(nonadopters_ee$EE_JLMS),2)), 
+           vjust = 1, color = "black", hjust = 1, size = 4)
+
+plot_nonadopters_ee
+```
+
+### Subset adopters
+
+```{R}
+adopters_data_ee <- data_2[data_2$adoption == 1,]
+#View(adopters_data_ee)
+suppressMessages(attach(adopters_data_ee))
+
+#Standard SFA for adopters
+
+adopters_sfa_ee <- sfacross(formula=log_net_GVA_KESha_norm ~
+                              log_total_GWP_kg_norm+
+                              asinh_Nutrient_deficit_N_dg_norm+
+                              asinh_Nutrient_deficit_P_dg_norm+
+                              asinh_toxicity_qty_ai_pesticides_dg_norm+
+                              log_total_energy_balance_MJ_norm+
+                              log_specialisation_norm+
+                              I(1/2*(log_total_GWP_kg_norm)^2)+
+                              I(1/2*(asinh_Nutrient_deficit_N_dg_norm)^2)+
+                              I(1/2*(asinh_Nutrient_deficit_P_dg_norm)^2)+
+                              I(1/2*(asinh_toxicity_qty_ai_pesticides_dg_norm)^2)+
+                              I(1/2*(log_total_energy_balance_MJ_norm)^2)+ 
+                              I(1/2*(log_specialisation_norm)^2)+  
+                              I(log_total_GWP_kg_norm * asinh_Nutrient_deficit_N_dg_norm) +
+                              I(log_total_GWP_kg_norm * asinh_Nutrient_deficit_P_dg_norm) +
+                              I(log_total_GWP_kg_norm * asinh_toxicity_qty_ai_pesticides_dg_norm) +
+                             I(log_total_GWP_kg_norm * log_total_energy_balance_MJ_norm) +
+                              I(log_total_GWP_kg_norm * log_specialisation_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * asinh_Nutrient_deficit_P_dg_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * asinh_toxicity_qty_ai_pesticides_dg_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * log_total_energy_balance_MJ_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * log_specialisation_norm) +
+                              I(asinh_Nutrient_deficit_P_dg_norm * asinh_toxicity_qty_ai_pesticides_dg_norm) +
+                              I(asinh_Nutrient_deficit_P_dg_norm * log_total_energy_balance_MJ_norm) +
+                              I(asinh_Nutrient_deficit_P_dg_norm * log_specialisation_norm) +
+                              I(asinh_toxicity_qty_ai_pesticides_dg_norm * log_total_energy_balance_MJ_norm) +
+                              I(asinh_toxicity_qty_ai_pesticides_dg_norm * log_specialisation_norm)+
+                              I(log_total_energy_balance_MJ_norm * log_specialisation_norm),
+                      udist = 'hnormal', 
+                      method = 'nr', 
+                      logDepVar = TRUE,
+                 data = adopters_data_ee)
+summary(adopters_sfa_ee)
+```
+
+## Harvest EE for adopters
+
+```{R}
+#sfaMargins(marginal(adopters_sfa_ee), "Eu_")
+adopters_ee <- data.frame(efficiencies(adopters_sfa_ee))
+adopters_ee <- adopters_ee |>
+  rename(EE_JLMS = teJLMS,
+         EE_BC = teBC,
+         eeu_i = u)
+#View(adopters_ee)
+suppressMessages(attach(adopters_ee))
+
+# Plot for adopters
+
+# Plot for adopters data
+plot_adopters_ee <- ggplot(adopters_ee, aes(x = EE_JLMS)) +
+  geom_density(color = "darkgreen", size = 0.65, bw = 0.02) + 
+  theme_bw() +
+  labs(x = "EE", y = "Density", 
+       title = paste("Adopters (N =", length(adopters_ee$EE_JLMS), ")")) +
+  scale_fill_manual(values = "darkgreen", name = "") +
+  theme(axis.title.x = element_text(face = "bold", size = 12),
+        axis.title.y = element_text(face = "bold", size = 12),
+        axis.text = element_text(face = "bold", size = 12),
+        legend.position = "none",
+        plot.title = element_text(face = "bold", hjust = 0.5)) +
+  geom_vline(xintercept = mean(adopters_ee$EE_JLMS), linetype = "dashed", color = "darkgreen") +
+  annotate("text", x = mean(adopters_ee$EE_JLMS) - 0.01, y = -0.1, label = paste("", round(mean(adopters_ee$EE_JLMS), 2)), 
+           vjust = 1, color = "black", hjust = 1, size = 4)
+
+plot_adopters_ee
+```
+
+### Plot all, adopters and non-adopters together
+
+```{R}
+combined_plot <- ggplot() +
+  geom_density(data = all_ee, aes(x = EE_JLMS, color = "Pooled"), size = 0.65, bw = 0.02) +
+  geom_density(data = nonadopters_ee, aes(x = EE_JLMS, color = "Non-adopters"), size = 0.65, bw = 0.02) +
+  geom_density(data = adopters_ee, aes(x = EE_JLMS, color = "Adopters"), size = 0.65, bw = 0.02) +
+  theme_bw() +
+  labs(x = "EE", y = "Density", color = "") +
+  theme(axis.title.x = element_text(face = "bold", size = 16),
+        axis.title.y = element_text(face = "bold", size = 16),
+        axis.text = element_text(face = "bold", size = 16),
+        legend.position = "top",
+        legend.title = element_text(face = "bold", size = 16),
+        legend.text = element_text(face = "bold", size = 16)) +
+  geom_vline(xintercept = mean(all_ee$EE_JLMS), linetype = "dashed", color = "orange") +
+  geom_vline(xintercept = mean(nonadopters_ee$EE_JLMS), linetype = "dashed", color = "black") +
+  geom_vline(xintercept = mean(adopters_ee$EE_JLMS), linetype = "dashed", color = "darkgreen") +
+  annotate("text", x = mean(all_ee$EE_JLMS) - 0.001, y = -0.3, label = paste("", round(mean(all_ee$EE_JLMS), 2)), 
+           vjust = -0.01, color = "orange", hjust = 1, size = 6) +
+  annotate("text", x = mean(nonadopters_ee$EE_JLMS) - 0.001, y = -0.3, label = paste("", round(mean(nonadopters_ee$EE_JLMS), 2)), 
+           vjust = -0.01, color = "black", hjust = 1, size = 6) +
+  annotate("text", x = mean(adopters_ee$EE_JLMS) + 0.015, y = -0.3, label = paste("", round(mean(adopters_ee$EE_JLMS), 2)), 
+           vjust = -0.01, color = "darkgreen", hjust = 1, size = 6) +
+  scale_color_manual(values = c("Pooled" = "orange", "Non-adopters" = "black", "Adopters" = "darkgreen"))
+
+combined_plot
+
+```
+
+#Latent Class SFA for adopters
+
+```{R}
+#Subset the data into extensive adopters
+extensive_data_ee <- adopters_data_ee[adopters_data_ee$Class == 1, ]  
+
+#Extensive
+extensive_sfa_ee <- sfacross(formula=log_net_GVA_KESha_norm ~
+                              log_total_GWP_kg_norm+
+                              asinh_Nutrient_deficit_N_dg_norm+
+                              asinh_Nutrient_deficit_P_dg_norm+
+                              asinh_toxicity_qty_ai_pesticides_dg_norm+
+                              log_total_energy_balance_MJ_norm+
+                              log_specialisation_norm+
+                              I(1/2*(log_total_GWP_kg_norm)^2)+
+                              I(1/2*(asinh_Nutrient_deficit_N_dg_norm)^2)+
+                              I(1/2*(asinh_Nutrient_deficit_P_dg_norm)^2)+
+                              I(1/2*(asinh_toxicity_qty_ai_pesticides_dg_norm)^2)+
+                              I(1/2*(log_total_energy_balance_MJ_norm)^2)+ 
+                              I(1/2*(log_specialisation_norm)^2)+  
+                              I(log_total_GWP_kg_norm * asinh_Nutrient_deficit_N_dg_norm) +
+                              I(log_total_GWP_kg_norm * asinh_Nutrient_deficit_P_dg_norm) +
+                              I(log_total_GWP_kg_norm * asinh_toxicity_qty_ai_pesticides_dg_norm) +
+                             I(log_total_GWP_kg_norm * log_total_energy_balance_MJ_norm) +
+                              I(log_total_GWP_kg_norm * log_specialisation_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * asinh_Nutrient_deficit_P_dg_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * asinh_toxicity_qty_ai_pesticides_dg_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * log_total_energy_balance_MJ_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * log_specialisation_norm) +
+                              I(asinh_Nutrient_deficit_P_dg_norm * asinh_toxicity_qty_ai_pesticides_dg_norm) +
+                              I(asinh_Nutrient_deficit_P_dg_norm * log_total_energy_balance_MJ_norm) +
+                              I(asinh_Nutrient_deficit_P_dg_norm * log_specialisation_norm) +
+                              I(asinh_toxicity_qty_ai_pesticides_dg_norm * log_total_energy_balance_MJ_norm) +
+                              I(asinh_toxicity_qty_ai_pesticides_dg_norm * log_specialisation_norm)+
+                              I(log_total_energy_balance_MJ_norm * log_specialisation_norm),
+                      udist = 'hnormal', 
+                      method = 'nm', 
+                      logDepVar = TRUE,
+                      itermax = 200000L,
+        data = extensive_data_ee)
+summary(extensive_sfa_ee)
+
+```
+
+### Harvest EEs
+
+```{R}
+#sfaMargins(marginal(LCM), "Eu_")
+extensive_ee <- data.frame(efficiencies(extensive_sfa_ee),
+                     id <- na.omit(extensive_data_ee$id...1))
+extensive_ee <- extensive_ee |>
+ rename(EE_JLMS = teJLMS)
+#View(extensive_ee)
+suppressMessages(attach(extensive_ee))
+
+#Mean EEs
+length(extensive_ee$EE_JLMS)
+mean(extensive_ee$EE_JLMS)
+
+```
+
+# Plot for extensive data
+
+```{R}
+
+plot_extensive_ee <- ggplot(extensive_ee, aes(x = EE_JLMS)) +
+  geom_density(color = "orange", size = 0.65, bw = 0.02) +
+  theme_bw() +
+  labs(x = "EE", y = "Density", title = paste("Extensive (N =", length(extensive_ee$EE_JLMS),")")) +
+  scale_fill_manual(values = "orange", name = "") +
+  theme(axis.title.x = element_text(face = "bold", size = 12),
+        axis.title.y = element_text(face = "bold", size = 12),
+        axis.text = element_text(face = "bold", size = 12),
+        legend.position = "none",
+        plot.title = element_text(face = "bold", hjust = 0.5)) +
+  geom_vline(xintercept = mean(extensive_ee$EE_JLMS), linetype = "dashed", color = "orange") +
+  annotate("text", x = mean(extensive_ee$EE_JLMS) - 0.01, y = -0.1, label = paste("", round(mean(extensive_ee$EE_JLMS), 2)),
+           vjust = 1, color = "black", hjust = 1, size = 4)
+plot_extensive_ee
+```
+
+
+```{R}
+#Subset the data into intensive adopters
+intensive_data_ee <- adopters_data_ee[adopters_data_ee$Class == 2, ] 
+
+#Extensive
+intensive_sfa_ee <- sfacross(formula=log_net_GVA_KESha_norm ~
+                              log_total_GWP_kg_norm+
+                              asinh_Nutrient_deficit_N_dg_norm+
+                              asinh_Nutrient_deficit_P_dg_norm+
+                              asinh_toxicity_qty_ai_pesticides_dg_norm+
+                              log_total_energy_balance_MJ_norm+
+                              log_specialisation_norm+
+                              I(1/2*(log_total_GWP_kg_norm)^2)+
+                              I(1/2*(asinh_Nutrient_deficit_N_dg_norm)^2)+
+                              I(1/2*(asinh_Nutrient_deficit_P_dg_norm)^2)+
+                              I(1/2*(asinh_toxicity_qty_ai_pesticides_dg_norm)^2)+
+                              I(1/2*(log_total_energy_balance_MJ_norm)^2)+ 
+                              I(1/2*(log_specialisation_norm)^2)+  
+                              I(log_total_GWP_kg_norm * asinh_Nutrient_deficit_N_dg_norm) +
+                              I(log_total_GWP_kg_norm * asinh_Nutrient_deficit_P_dg_norm) +
+                              I(log_total_GWP_kg_norm * asinh_toxicity_qty_ai_pesticides_dg_norm) +
+                             I(log_total_GWP_kg_norm * log_total_energy_balance_MJ_norm) +
+                              I(log_total_GWP_kg_norm * log_specialisation_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * asinh_Nutrient_deficit_P_dg_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * asinh_toxicity_qty_ai_pesticides_dg_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * log_total_energy_balance_MJ_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * log_specialisation_norm) +
+                              I(asinh_Nutrient_deficit_P_dg_norm * asinh_toxicity_qty_ai_pesticides_dg_norm) +
+                              I(asinh_Nutrient_deficit_P_dg_norm * log_total_energy_balance_MJ_norm) +
+                              I(asinh_Nutrient_deficit_P_dg_norm * log_specialisation_norm) +
+                              I(asinh_toxicity_qty_ai_pesticides_dg_norm * log_total_energy_balance_MJ_norm) +
+                              I(asinh_toxicity_qty_ai_pesticides_dg_norm * log_specialisation_norm)+
+                              I(log_total_energy_balance_MJ_norm * log_specialisation_norm),
+                      udist = 'hnormal', 
+                      method = 'nm', 
+                      logDepVar = TRUE,
+                      itermax = 200000L,
+                 data = intensive_data_ee)
+summary(intensive_sfa_ee)
+
+```
+
+### Harvest EEs
+
+```{R}
+#sfaMargins(marginal(LCM), "Eu_")
+intensive_ee <- data.frame(efficiencies(intensive_sfa_ee),
+                     id <- na.omit(intensive_data_ee$id...1))
+intensive_ee <- intensive_ee |>
+ rename(EE_JLMS = teJLMS)
+#View(intensive_ee)
+suppressMessages(attach(intensive_ee))
+
+#Mean EEs
+length(intensive_ee$EE_JLMS)
+mean(intensive_ee$EE_JLMS)
+
+```
+
+# Plot for intensive data
+
+```{R}
+plot_intensive_ee <- ggplot(intensive_ee, aes(x = EE_JLMS)) +
+  geom_density(color = "darkgreen", size = 0.65, bw = 0.02) +
+  theme_bw() +
+  labs(x = "EE", y = "Density", title = paste("Intensive (N =", length(intensive_ee$EE_JLMS),")")) +
+  scale_fill_manual(values = "darkgreen", name = "") +
+  theme(axis.title.x = element_text(face = "bold", size = 12),
+        axis.title.y = element_text(face = "bold", size = 12),
+        axis.text = element_text(face = "bold", size = 12),
+        legend.position = "none",
+        plot.title = element_text(face = "bold", hjust = 0.5)) +
+  geom_vline(xintercept = mean(intensive_ee$EE_JLMS), linetype = "dashed", color = "darkgreen") +
+  annotate("text", x = mean(intensive_ee$EE_JLMS) - 0.01, y = -0.1, label = paste("", round(mean(intensive_ee$EE_JLMS), 2)),
+           vjust = 1, color = "black", hjust = 1, size = 4)
+plot_intensive_ee
+```
+
+# Plot for intensive and extensive data
+
+```{R}
+combined_plot_ee <- ggplot() +
+  geom_density(data = intensive_ee, aes(x = EE_JLMS, color = "Intensive"), size = 0.65, bw = 0.02) +
+  geom_density(data = extensive_ee, aes(x = EE_JLMS, color = "Extensive"), size = 0.65, bw = 0.02) +
+  theme_bw() +
+  labs(x = "EE", y = "Density", 
+       color = "") +
+  theme(axis.title.x = element_text(face = "bold", size = 16),
+        axis.title.y = element_text(face = "bold", size = 16),
+        axis.text = element_text(face = "bold", size = 16),
+        legend.position = "top",
+        legend.title = element_text(face = "bold", size = 16),
+        legend.text = element_text(face = "bold", size = 16)) +
+  geom_vline(xintercept = mean(intensive_ee$EE_JLMS), linetype = "dashed", color = "darkgreen") +
+  geom_vline(xintercept = mean(extensive_ee$EE_JLMS), linetype = "dashed", color = "orange") +
+  annotate("text", x = mean(intensive_ee$EE_JLMS) - 0.001, y = -0.2, label = paste("", round(mean(intensive_ee$EE_JLMS), 2)),
+           vjust = 1, color = "darkgreen", hjust = 1, size = 6) +
+  annotate("text", x = mean(extensive_ee$EE_JLMS) - 0.001, y = -0.2, label = paste("", round(mean(extensive_ee$EE_JLMS), 2)),
+           vjust = 1, color = "orange", hjust = 1, size = 6) +
+  scale_color_manual(values = c("Intensive" = "darkgreen", "Extensive" = "orange"))
+
+combined_plot_ee
+
+ 
+```
+
+#Meta-Frontier Procedure:
+
+#Predict Y_i\^{hat} for each group 
+#Use results from the previous LCA classes
+
+```{R}
+# Create fitted values for nonadopters, extensive and intensive adopters
+nonadopters_data_ee$fitted_ee <- fitted(nonadopters_sfa_ee)
+extensive_data_ee$fitted_ee <- NA
+intensive_data_ee$fitted_ee <- NA
+
+# Assign fitted values to adopters based on Class
+# Extensive is Class 1
+extensive_data_ee$fitted_ee[extensive_data_ee$Class == 1] <- fitted(extensive_sfa_ee)
+# Intensive is Class 2
+intensive_data_ee$fitted_ee[intensive_data_ee$Class == 2] <- fitted(intensive_sfa_ee)
+
+#Pool the EEs for all groups
+nonadopters_data_ee$ee <- efficiencies(nonadopters_sfa_ee)$teJLMS
+#View(nonadopters)
+extensive_data_ee$ee <- efficiencies(extensive_sfa_ee)$teJLMS
+#View(extensive_data_ee)
+intensive_data_ee$ee <- efficiencies(intensive_sfa_ee)$teJLMS
+#View(intensive_data_ee)
+
+#Pool the Y_i\^{hat} and TE for all groups
+merged_data_2_ee <- bind_rows(nonadopters_data_ee, extensive_data_ee, intensive_data_ee)
+
+```
+
+#Estimate a metafrontier using the pooled Y_i\^{hat} for the whole data, including only covariates that influence TGRs
+
+```{R}
+#Stochastic Meta-frontier for nonadopters, extensive and intensive adopters
+smfa_cobb_ee <- sfacross(formula = fitted_ee ~
+                              log(total_GWP_kg)+
+                              I(asinh((Nutrient_deficit_N_g...19*10^1)))+
+                              I(asinh((Nutrient_deficit_K_g...25*10^1)))+
+                              I(asinh((toxicity_qty_ai_pesticides_g*10^1)))+
+                              log(total_energy_balance_MJ)+
+                              log(Specialisation...7),
+                          udist = 'tnormal', 
+                          method = 'nm', 
+                          itermax = 50000L,
+                          logDepVar = TRUE,
+                     data = merged_data_2_ee)
+summary(smfa_cobb_ee)
+smfa_ee <- sfacross(formula = fitted_ee ~
+                              log_total_GWP_kg_norm+
+                              asinh_Nutrient_deficit_N_dg_norm+
+                              asinh_Nutrient_deficit_P_dg_norm+
+                              asinh_toxicity_qty_ai_pesticides_dg_norm+
+                              log_total_energy_balance_MJ_norm+
+                              log_specialisation_norm+
+                              I(1/2*(log_total_GWP_kg_norm)^2)+
+                              I(1/2*(asinh_Nutrient_deficit_N_dg_norm)^2)+
+                              I(1/2*(asinh_Nutrient_deficit_P_dg_norm)^2)+
+                              I(1/2*(asinh_toxicity_qty_ai_pesticides_dg_norm)^2)+
+                              I(1/2*(log_total_energy_balance_MJ_norm)^2)+ 
+                              I(1/2*(log_specialisation_norm)^2)+  
+                              I(log_total_GWP_kg_norm * asinh_Nutrient_deficit_N_dg_norm) +
+                              I(log_total_GWP_kg_norm * asinh_Nutrient_deficit_P_dg_norm) +
+                              I(log_total_GWP_kg_norm * asinh_toxicity_qty_ai_pesticides_dg_norm) +
+                              I(log_total_GWP_kg_norm * log_total_energy_balance_MJ_norm) +
+                              I(log_total_GWP_kg_norm * log_specialisation_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * asinh_Nutrient_deficit_P_dg_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * asinh_toxicity_qty_ai_pesticides_dg_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * log_total_energy_balance_MJ_norm) +
+                              I(asinh_Nutrient_deficit_N_dg_norm * log_specialisation_norm) +
+                              I(asinh_Nutrient_deficit_P_dg_norm * asinh_toxicity_qty_ai_pesticides_dg_norm) +
+                              I(asinh_Nutrient_deficit_P_dg_norm * log_total_energy_balance_MJ_norm) +
+                              I(asinh_Nutrient_deficit_P_dg_norm * log_specialisation_norm) +
+                              I(asinh_toxicity_qty_ai_pesticides_dg_norm * log_total_energy_balance_MJ_norm)+
+                              I(asinh_toxicity_qty_ai_pesticides_dg_norm * log_specialisation_norm)+
+                              I(log_total_energy_balance_MJ_norm * log_specialisation_norm),
+                          udist = 'tnormal', 
+                          method = 'bhhh', 
+                          itermax = 200000L,
+                          logDepVar = TRUE,
+                     data = merged_data_2_ee)
+summary(smfa_ee)
+```
+
+
+# Likelihood ratio test for homogeneous PGT and functional form
+```{R}
+library(stringr)
+
+cobb_logLik_ee <- logLik(smfa_cobb_ee)
+cobb_logLik_ee <- str_extract(cobb_logLik_ee , "-?\\d+\\.\\d+")
+cobb_logLik_ee <- as.numeric(cobb_logLik_ee)
+cobb_logLik_ee
+
+
+nonadopter_logLik_ee <- logLik(nonadopters_sfa_ee)
+extensive_logLik_ee <- logLik(extensive_sfa_ee)
+intensive_logLik_ee <- logLik(intensive_sfa_ee)
+Meta_logLik_ee <- logLik(smfa_ee)
+
+nonadopter_logLik_ee  <- str_extract(nonadopter_logLik_ee, "-?\\d+\\.\\d+")
+extensive_logLik_ee <- str_extract(extensive_logLik_ee, "-?\\d+\\.\\d+")
+intensive_logLik_ee <- str_extract(intensive_logLik_ee, "-?\\d+\\.\\d+")
+Meta_logLik_ee <- str_extract(Meta_logLik_ee, "-?\\d+\\.\\d+")
+
+# Convert the extracted value to numeric
+nonadopter_logLik_ee <- as.numeric(nonadopter_logLik_ee)
+nonadopter_logLik_ee 
+extensive_logLik_ee<- as.numeric(extensive_logLik_ee)
+extensive_logLik_ee
+intensive_logLik_ee<- as.numeric(intensive_logLik_ee)
+intensive_logLik_ee
+Meta_logLik_ee <- as.numeric(Meta_logLik_ee)
+Meta_logLik_ee
+
+
+# Likelihood ratio test
+lrt_ee <- -2 * (cobb_logLik_ee - Meta_logLik_ee)
+lrt_ee
+# Chi-square test for significance
+p_value <- pchisq(lrt_ee, df = 41, lower.tail = FALSE)
+p_value
+# Check if the p-value is significant
+if (p_value < 0.05) {
+  cat("Reject H0: The Translog specification is preferred (p-value:", p_value, ")\n")
+} else {
+  cat("Fail to reject H0: The Cobb-Douglas specification is sufficient (p-value:", p_value, ")\n")
+}
+
+# Generalised likelihood ratio test
+
+glrt_ee <- -2 * ( nonadopter_logLik_ee + extensive_logLik_ee + intensive_logLik_ee - Meta_logLik_ee)
+glrt_ee
+# Chi-square test for significance
+p_value_ee <- pchisq(glrt_ee, df = 28, lower.tail = FALSE)
+p_value_ee
+# Check if the p-value is significant
+if (p_value_ee < 0.05) {
+  cat("Reject H0: The metafrontier provides a significantly better fit compared to the group-specific frontiers (p-value:", p_value_ee, ")\n")
+} else {
+  cat("Fail to reject H0: The metafrontier does not provide a significantly better fit compared to the group-specific frontiers (p-value:", p_value_ee, ")\n")
+}
+```
+
+#Harvest TGRs for all groups
+
+```{R}
+merged_data_2_ee$tgr_ee <- efficiencies(smfa_ee)$teJLMS
+#View(merged_data_2_ee)
+
+#Plot TGRs for all groups
+
+merged_data_2_ee$tgr_ee <- as.numeric(unlist(merged_data_2_ee$tgr_ee))
+plot_tgr_ee <- ggplot(merged_data_2_ee) +
+  geom_density(aes(x = tgr_ee), color = "red", size = 0.65, bw = 0.02) +
+  theme_bw() +
+  labs(x = "TGR", y = "Density", title = paste("Pooled (N =",length(as.numeric(unlist(merged_data_2_ee$tgr_ee))),")")) +
+  scale_fill_manual(values = "red", name = "") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"),  # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+geom_vline(xintercept = mean(merged_data_2_ee$tgr_ee), linetype = "dashed", color = "red") +
+  annotate("text", x = mean(merged_data_2_ee$tgr_ee) - 0.01, y = -0.1, label = paste("", round(mean(merged_data_2_ee$tgr_ee), 2)),
+           vjust = 1, color = "black", hjust = 1, size = 3)
+  plot_tgr_ee
+```
+
+#TGR for nonadopters
+
+```{R}
+nonadopters_tgr_ee <- as.numeric(unlist(merged_data_2_ee$tgr_ee[merged_data_2_ee$adoption == 0]))
+# Check the structure of nonadopters_tgr_ee to understand its format
+nonadopters_tgr_ee <- as.numeric(nonadopters_tgr_ee[!is.na(nonadopters_tgr_ee)])
+nonadopters_df_ee <- data.frame(nonadopters_tgr_ee)
+suppressMessages(attach(nonadopters_df_ee))
+plot_nonadopters_tgr_ee <- ggplot(nonadopters_df_ee) +
+  geom_density(aes(x = nonadopters_tgr_ee), color = "black", size = 0.65, bw = 0.02) +
+  theme_bw() +
+  labs(x = "TGR", y = "Density", title = paste("Non-adopters (N =",length(as.numeric(unlist(merged_data_2_ee$tgr_ee[merged_data_2_ee$adoption == 0]))),")")) +
+  scale_fill_manual(values = "black", name = "") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"),  # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+  geom_vline(xintercept = mean(merged_data_2_ee$tgr_ee[merged_data_2_ee$adoption == 0]), linetype = "dashed", color = "black") +
+  annotate("text", x = mean(merged_data_2_ee$tgr_ee[merged_data_2_ee$adoption == 0]) - 0.01, y = -0.1, label = paste("", round(mean(merged_data_2_ee$tgr_ee[merged_data_2_ee$adoption == 0]), 2)),
+           vjust = 1, color = "black", hjust = 1, size = 3)
+plot_nonadopters_tgr_ee
+```
+
+#TGR for adopters
+
+```{R}
+adopters_tgr_ee <- as.numeric(unlist(merged_data_2_ee$tgr_ee[merged_data_2_ee$adoption == 1]))
+# Check the structure of adopters_tgr_ee to understand its format
+str(adopters_tgr_ee)
+adopters_tgr_ee <- as.numeric(adopters_tgr_ee[!is.na(adopters_tgr_ee)])
+adopters_df_ee <- data.frame(adopters_tgr_ee)
+suppressMessages(attach(adopters_df_ee))
+plot_adopters_tgr_ee <- ggplot(adopters_df_ee) +
+  geom_density(aes(x = adopters_tgr_ee), color = "darkgreen", size = 0.65, bw = 0.02) +
+  theme_bw() +
+  labs(x = "TGR", y = "Density", title = paste("Adopters (N =",length(as.numeric(unlist(merged_data_2_ee$tgr_ee[merged_data_2_ee$adoption == 1]))),")")) +
+  scale_fill_manual(values = "darkgreen", name = "") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"),  # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+  geom_vline(xintercept = mean(merged_data_2_ee$tgr_ee[merged_data_2_ee$adoption == 1]), linetype = "dashed", color = "darkgreen") +
+  annotate("text", x = mean(merged_data_2_ee$tgr_ee[merged_data_2_ee$adoption == 1]) - 0.01, y = -0.1, label = paste("", round(mean(merged_data_2_ee$tgr_ee[merged_data_2_ee$adoption == 1]), 2)),
+           vjust = 1, color = "black", hjust = 1, size = 3)
+plot_adopters_tgr_ee
+```
+
+```{R}
+# Combine adopters and nonadopters datasets
+adopters_nonadopters_tgr_ee <- rbind(
+  mutate(subset(merged_data_2_ee, adoption == 0)[, "tgr_ee"], group = paste("Non-adopters (N =", sum(merged_data_2_ee$adoption == 0), ")")),
+  mutate(subset(merged_data_2_ee, adoption == 1)[, "tgr_ee"], group = paste("Adopters (N =", sum(merged_data_2_ee$adoption == 1), ")"))
+)
+
+# Calculate mean TGR scores for adopters and nonadopters
+mean_adopters_nonadopters_tgr_ee <- adopters_nonadopters_tgr_ee %>%
+  group_by(group) %>%
+  summarize(mean_tgr_ee = mean(tgr_ee))
+
+# Plot combined data with mean annotations
+combined_adopters_nonadopters_plot_ee <- ggplot(adopters_nonadopters_tgr_ee, aes(x = tgr_ee, color = group)) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.02) +
+  geom_vline(data = mean_adopters_nonadopters_tgr_ee, aes(xintercept = mean_tgr_ee, color = group), linetype = "dashed") + 
+  geom_text(data = mean_adopters_nonadopters_tgr_ee, aes(x = mean_tgr_ee, label = round(mean_tgr_ee, 2), y = 0.5, color = group), hjust = 1, vjust = 1, size = 3, show.legend = FALSE) +
+  scale_fill_manual(values = c("darkgreen", "black"), name = "") +
+  scale_color_manual(values = c("darkgreen", "black"), name = "") +
+  theme_bw() +
+  labs(x = "TGR", y = "Density", 
+       title = "Distribution of TGR for Adopters and Nonadopters") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text.x = element_text(face = "bold"),
+        axis.text.y = element_text(face = "bold"),
+        legend.text = element_text(face = "bold"),
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        legend.position = "top")
+
+# Display the plot
+combined_adopters_nonadopters_plot_ee
+```
+
+#TGR for intensive adopters
+
+```{R}
+intensive_tgr_ee <- as.numeric(unlist(merged_data_2_ee$tgr_ee[merged_data_2_ee$Class == 2]))
+# Check the structure of intensive_tgr_ee to understand its format
+intensive_tgr_ee <- as.numeric(intensive_tgr_ee[!is.na(intensive_tgr_ee)])
+intensive_df_ee <- data.frame(intensive_tgr_ee)
+
+plot_intensive_tgr_ee <- ggplot(intensive_df_ee) +
+  geom_density(aes(x = intensive_tgr_ee), color = "darkgreen", size = 0.65, bw = 0.02) +
+  theme_bw() +
+  labs(x = "TGR", y = "Density", title = paste("Intensive (N =",length(intensive_tgr_ee),")")) +
+  scale_fill_manual(values = "darkgreen", name = "") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"),  # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+geom_vline(xintercept = mean(intensive_tgr_ee), linetype = "dashed", color = "darkgreen") +
+  annotate("text", x = mean(intensive_tgr_ee) - 0.01, y = -0.1, label = paste("", round(mean(intensive_tgr_ee), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
+  plot_intensive_tgr_ee
+
+```
+
+#TGR for extensive adopters
+
+```{R}
+extensive_tgr_ee <- as.numeric(unlist(merged_data_2_ee$tgr_ee[merged_data_2_ee$Class == 1]))
+# Check the structure of extensive_tgr_ee to understand its format
+str(extensive_tgr_ee)
+extensive_tgr_ee <- as.numeric(extensive_tgr_ee[!is.na(extensive_tgr_ee)])
+extensive_df_ee <- data.frame(extensive_tgr_ee)
+
+plot_extensive_tgr_ee <- ggplot(extensive_df_ee) +
+  geom_density(aes(x = extensive_tgr_ee), color = "orange", size = 0.65, bw = 0.02) +
+  theme_bw() +
+  labs(x = "TGR", y = "Density", title = paste("Extensive (N =",length(extensive_tgr_ee),")")) +
+  scale_fill_manual(values = "orange", name = "") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"),  # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+  geom_vline(xintercept = mean(extensive_tgr_ee), linetype = "dashed", color = "orange") +
+  annotate("text", x = mean(extensive_tgr_ee) - 0.01, y = -0.1, label = paste("", round(mean(extensive_tgr_ee), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
+plot_extensive_tgr_ee
+```
+
+```{R}
+extensive_intensive_tgr_ee <- rbind(
+  mutate(subset(merged_data_2_ee, Class == 1)[, "tgr_ee"], group = paste("Extensive (N =", sum(!is.na(merged_data_2_ee$tgr_ee[merged_data_2_ee$Class == 1])), ")")),
+  mutate(subset(merged_data_2_ee, Class == 2)[, "tgr_ee"], group = paste("Intensive (N =", sum(!is.na(merged_data_2_ee$tgr_ee[merged_data_2_ee$Class == 2])), ")"))
+)
+
+# Calculate mean TGR scores for extensive and intensive adopters
+mean_extensive_intensive_tgr_ee <- extensive_intensive_tgr_ee %>%
+  group_by(group) %>%
+  summarize(mean_tgr_ee = mean(tgr_ee))
+
+# Plot combined data with mean annotations
+combined_extensive_intensive_plot_ee <- ggplot(extensive_intensive_tgr_ee, aes(x = tgr_ee, color = group)) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.02) +
+  geom_vline(data = mean_extensive_intensive_tgr_ee, aes(xintercept = mean_tgr_ee, color = group), linetype = "dashed") + 
+  geom_text(data = mean_extensive_intensive_tgr_ee, aes(x = mean_tgr_ee, label = round(mean_tgr_ee, 2), y = 0.5, color = group), hjust = 1, vjust = 1, size = 3, show.legend = FALSE) +
+  scale_fill_manual(values = c("orange", "darkgreen"), name = "") +
+  scale_color_manual(values = c("orange", "darkgreen"), name = "") +
+  theme_bw() +
+  labs(x = "TGR", y = "Density", 
+       title = "Distribution of TGR for Extensive and Intensive Adopters") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text.x = element_text(face = "bold"),
+        axis.text.y = element_text(face = "bold"),
+        legend.text = element_text(face = "bold"),
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        legend.position = "top")
+
+# Display the plot
+combined_extensive_intensive_plot_ee
+```
+
+# Non-adopters, extensive and intensive adopters TGR plot
+
+```{R}
+all_three_tgr_ee <- rbind(
+  mutate(subset(merged_data_2_ee, Class == 1)[, "tgr_ee"], group = paste("Extensive (N =", sum(!is.na(merged_data_2_ee$tgr_ee[merged_data_2_ee$Class == 1])), ")")),
+  mutate(subset(merged_data_2_ee, Class == 2)[, "tgr_ee"], group = paste("Intensive (N =", sum(!is.na(merged_data_2_ee$tgr_ee[merged_data_2_ee$Class == 2])), ")")),
+  mutate(subset(merged_data_2_ee, adoption == 0)[, "tgr_ee"], group = paste("Non-adopters (N =", sum(!is.na(merged_data_2_ee$tgr_ee[merged_data_2_ee$adoption == 0])), ")"))
+)
+
+# Calculate mean TGR scores for non-adopters, intensive and extensive adopters
+mean_all_three_tgr_ee <- all_three_tgr_ee %>%
+  group_by(group) %>%
+  summarize(mean_tgr_ee = mean(tgr_ee))
+
+combined_all_three_plot_ee <- ggplot(all_three_tgr_ee, aes(x = tgr_ee, color = group)) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.02) +
+  geom_vline(data = mean_all_three_tgr_ee, aes(xintercept = mean_tgr_ee, color = group), linetype = "dashed") + 
+  geom_text(data = mean_all_three_tgr_ee, aes(x = mean_tgr_ee, label = round(mean_tgr_ee, 2), y = 0.5, color = group), hjust = 1, vjust = 1, size = 6, show.legend = FALSE) +
+  scale_fill_manual(values = c("orange", "darkgreen", "black"), name = "") +
+  scale_color_manual(values = c("orange", "darkgreen", "black"), name = "") +
+  theme_bw() +
+  labs(x = "PGTGR", y = "Density") +
+  theme(axis.title.x = element_text(face = "bold", size = 16),
+        axis.title.y = element_text(face = "bold", size = 16),
+        axis.text.x = element_text(face = "bold", size = 16),
+        axis.text.y = element_text(face = "bold", size = 16),
+        legend.text = element_text(face = "bold", size = 16),
+        legend.title = element_text(face = "bold", size = 16),
+        legend.position = "top")
+
+# Display the plot
+combined_all_three_plot_ee
+```
+------------------------------------------------------------------------
+# Harvest MEEs for all groups
+
+```{R}
+#Meta-eco-efficiency
+merged_data_2_ee$mee <- efficiencies(smfa_ee)$teJLMS*merged_data_2_ee$ee
+#View(merged_data_2)
+
+# Plot MTEs for all groups
+merged_data_2_ee$mee <- as.numeric(unlist(merged_data_2_ee$mee))
+plot_mee <- ggplot(merged_data_2_ee) +
+  geom_density(aes(x = mee), color = "red", size = 0.65, bw = 0.02) +
+  theme_bw() +
+  labs(x = "MEE", y = "Density", title = paste("Pooled (N =",length(as.numeric(unlist(merged_data_2_ee$mee))),")")) +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"), # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+geom_vline(xintercept = mean(merged_data_2_ee$mee), linetype = "dashed", color = "red") +
+  annotate("text", x = mean(merged_data_2_ee$mee) - 0.01, y = -0.1, label = paste("", round(mean(merged_data_2_ee$mee), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
+  plot_mee
+```
+
+# MTE for nonadopters
+
+```{R}
+nonadopters_mee <- as.numeric(unlist(merged_data_2_ee$mee[merged_data_2_ee$adoption == 0]))
+# Check the structure of nonadopters_mee to understand its format
+str(nonadopters_mee)
+nonadopters_mee <- as.numeric(nonadopters_mee[!is.na(nonadopters_mee)])
+nonadopters_df_ee <- data.frame(nonadopters_mee)
+
+plot_nonadopters_mee <- ggplot(nonadopters_df_ee) +
+  geom_density(aes(x = nonadopters_mee), color = "black", size = 0.65, bw = 0.02) +
+  theme_bw() +
+  labs(x = "MEE", y = "Density", title = paste("Non-adopters (N =",length(as.numeric(unlist(merged_data_2_ee$mee[merged_data_2_ee$adoption == 0]))),")")) +
+  scale_fill_manual(values = "black", name = "") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"), # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+geom_vline(xintercept = mean(merged_data_2_ee$mee[merged_data_2_ee$adoption == 0]), linetype = "dashed", color = "black") +
+  annotate("text", x = mean(merged_data_2_ee$mee[merged_data_2_ee$adoption == 0]) - 0.01, y = -0.1, label = paste("", round(mean(merged_data_2_ee$mee[merged_data_2_ee$adoption == 0]), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
+  plot_nonadopters_mee
+```
+
+# MTE for adopters
+
+```{R}
+adopters_mee <- as.numeric(unlist(merged_data_2_ee$mee[merged_data_2_ee$adoption == 1]))
+# Check the structure of adopters_mee to understand its format
+str(adopters_mee)
+adopters_mee <- as.numeric(adopters_mee[!is.na(adopters_mee)])
+adopters_df_ee <- data.frame(adopters_mee)
+
+plot_adopters_mee <- ggplot(adopters_df_ee) +
+  geom_density(aes(x = adopters_mee), color = "darkgreen", size = 0.65, bw = 0.02) +
+  theme_bw() +
+  labs(x = "MEE", y = "Density", title = paste("Adopters (N =",length(as.numeric(unlist(merged_data_2_ee$mee[merged_data_2_ee$adoption == 1]))),")")) +
+  scale_fill_manual(values = "darkgreen", name = "") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"), # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+geom_vline(xintercept = mean(merged_data_2_ee$mee[merged_data_2_ee$adoption == 1]), linetype = "dashed", color = "darkgreen") +
+  annotate("text", x = mean(merged_data_2_ee$mee[merged_data_2_ee$adoption == 1]) - 0.01, y = -0.1, label = paste("", round(mean(merged_data_2_ee$mee[merged_data_2_ee$adoption == 1]), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
+  plot_adopters_mee
+```
+
+```{R}
+# Combine adopters and non-adopters datasets
+adopters_nonadopters_mee <- rbind(
+  mutate(subset(merged_data_2_ee, adoption == 0)[, "mee"], group = paste("Non-adopters (N =", sum(merged_data_2_ee$adoption == 0), ")")),
+  mutate(subset(merged_data_2_ee, adoption == 1)[, "mee"], group = paste("Adopters (N =", sum(merged_data_2_ee$adoption == 1), ")"))
+)
+
+# Calculate mean MEE scores for adopters and non-adopters
+mean_adopters_nonadopters_mee <- adopters_nonadopters_mee %>%
+  group_by(group) %>%
+  summarize(mean_mee = mean(mee))
+
+# Plot combined data with mean annotations
+combined_adopters_nonadopters_mee_plot <- ggplot(adopters_nonadopters_mee, aes(x = mee, color = group)) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.02) +
+  geom_vline(data = mean_adopters_nonadopters_mee, aes(xintercept = mean_mee, color = group), linetype = "dashed") + 
+  geom_text(data = mean_adopters_nonadopters_mee, aes(x = mean_mee, label = round(mean_mee, 2), y = 0.5, color = group), hjust = 1, vjust = 1, size = 3, show.legend = FALSE) +
+  scale_fill_manual(values = c("darkgreen", "black"), name = "") +
+  scale_color_manual(values = c("darkgreen", "black"), name = "") +
+  theme_bw() +
+  labs(x = "MEE", y = "Density", 
+       title = "Distribution of MEE for Adopters and Non-adopters") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text.x = element_text(face = "bold"),
+        axis.text.y = element_text(face = "bold"),
+        legend.text = element_text(face = "bold"),
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        legend.position = "top")
+
+# Display the plot
+combined_adopters_nonadopters_mee_plot
+```
+
+# MTE for extensive adopters
+
+```{R}
+extensive_mee <- as.numeric(unlist(merged_data_2_ee$mee[merged_data_2_ee$Class == 1]))
+# Check the structure of extensive_mee to understand its format
+extensive_mee <- as.numeric(extensive_mee[!is.na(extensive_mee)])
+extensive_df_ee <- data.frame(extensive_mee)
+
+plot_extensive_mee <- ggplot(extensive_df_ee) +
+  geom_density(aes(x = extensive_mee), color = "orange", size = 0.65, bw = 0.02) +
+  theme_bw() +
+  labs(x = "MEE", y = "Density", title = paste("Extensive (N =",length(extensive_mee),")")) +
+  scale_fill_manual(values = "orange", name = "") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"), # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+geom_vline(xintercept = mean(extensive_mee), linetype = "dashed", color = "orange") +
+  annotate("text", x = mean(extensive_mee) - 0.01, y = -0.1, label = paste("", round(mean(extensive_mee), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
+  plot_extensive_mee
+```
+
+# MTE for intensive adopters
+
+```{R}
+intensive_mee <- as.numeric(unlist(merged_data_2_ee$mee[merged_data_2_ee$Class == 2]))
+# Check the structure of intensive_mee to understand its format
+intensive_mee <- as.numeric(intensive_mee[!is.na(intensive_mee)])
+intensive_df_ee <- data.frame(intensive_mee)
+
+plot_intensive_mee <- ggplot(intensive_df_ee) +
+  geom_density(aes(x = intensive_mee), color = "darkgreen", size = 0.65, bw = 0.02) +
+  theme_bw() +
+  labs(x = "MEE", y = "Density", title = paste("Intensive (N =",length(intensive_mee),")")) +
+  scale_fill_manual(values = "darkgreen", name = "") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text = element_text(face = "bold"), # Make axis tick labels bold as well
+        legend.position = "none",  # Remove legend
+        plot.title = element_text(face = "bold", hjust = 0.5))+  # Center title and make it bold
+geom_vline(xintercept = mean(intensive_mee), linetype = "dashed", color = "darkgreen") +
+  annotate("text", x = mean(intensive_mee) - 0.01, y = -0.1, label = paste("", round(mean(intensive_mee), 2)), vjust = 1, color = "black", hjust = 1, size = 3)
+plot_intensive_mee
+```
+
+# Extensive and intensive MEE
+
+```{R}
+extensive_intensive_mee <- rbind(
+  mutate(subset(merged_data_2_ee, Class == 1)[, "mee"], group = paste("Extensive (N =", sum(!is.na(merged_data_2_ee$mee[merged_data_2_ee$Class == 1])), ")")),
+  mutate(subset(merged_data_2_ee, Class == 2)[, "mee"], group = paste("Intensive (N =", sum(!is.na(merged_data_2_ee$mee[merged_data_2_ee$Class == 2])), ")"))
+)
+
+# Calculate mean MEE scores for intensive and extensive adopters
+mean_extensive_intensive_mee <- extensive_intensive_mee %>%
+  group_by(group) %>%
+  summarize(mean_mee = mean(mee))
+
+# Plot combined data with mean annotations
+combined_extensive_intensive_plot_mee <- ggplot(extensive_intensive_mee, aes(x = mee, color = group)) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.02) +
+  geom_vline(data = mean_extensive_intensive_mee, aes(xintercept = mean_mee, color = group), linetype = "dashed") + 
+  geom_text(data = mean_extensive_intensive_mee, aes(x = mean_mee, label = round(mean_mee, 2), y = 0.5, color = group), hjust = 1, vjust = 1, size = 3, show.legend = FALSE) +
+  scale_fill_manual(values = c("orange", "darkgreen"), name = "") +
+  scale_color_manual(values = c("orange", "darkgreen"), name = "") +
+  theme_bw() +
+  labs(x = "MEE", y = "Density", 
+       title = "Distribution of MEE for Extensive and Intensive Adopters") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text.x = element_text(face = "bold"),
+        axis.text.y = element_text(face = "bold"),
+        legend.text = element_text(face = "bold"),
+        plot.title = element_text(face = "bold", hjust = 0.5),
+        legend.position = "top")
+
+# Display the plot
+combined_extensive_intensive_plot_mee
+```
+
+#Non-adopters, extensive and intensive adopters
+
+```{R}
+# Combine data
+all_three_mee <- rbind(
+  mutate(subset(merged_data_2_ee, Class == 1)[, "mee"], group = paste("Extensive (N =", sum(!is.na(merged_data_2_ee$mee[merged_data_2_ee$Class == 1])), ")")),
+  mutate(subset(merged_data_2_ee, Class == 2)[, "mee"], group = paste("Intensive (N =", sum(!is.na(merged_data_2_ee$mee[merged_data_2_ee$Class == 2])), ")")),
+  mutate(subset(merged_data_2_ee, adoption == 0)[, "mee"], group = paste("Non-adopters (N =", sum(!is.na(merged_data_2_ee$mee[merged_data_2_ee$adoption == 0])), ")"))
+)
+
+# Calculate mean MEE scores for non-adopters, intensive, and extensive adopters
+mean_all_three_mee <- all_three_mee %>%
+  group_by(group) %>%
+  summarize(mean_mee = mean(mee))
+
+# Plot combined data with mean annotations
+combined_all_three_mee_plot <- ggplot(all_three_mee, aes(x = mee, color = group)) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.02) +
+  geom_vline(data = mean_all_three_mee, aes(xintercept = mean_mee, color = group), linetype = "dashed") + 
+  geom_text(data = mean_all_three_mee, aes(x = mean_mee, label = round(mean_mee, 2), y = 0.5, color = group), hjust = 1, vjust = 1, size = 4, show.legend = FALSE) +
+  scale_fill_manual(values = c("orange", "darkgreen", "black"), name = "") +
+  scale_color_manual(values = c("orange", "darkgreen", "black"), name = "") +
+  theme_bw() +
+  labs(x = "MEE", y = "Density") +
+  theme(axis.title.x = element_text(face = "bold", size = 16),
+        axis.title.y = element_text(face = "bold", size = 16),
+        axis.text.x = element_text(face = "bold", size = 16),
+        axis.text.y = element_text(face = "bold", size = 16),
+        legend.text = element_text(face = "bold", size = 16),
+        legend.title = element_text(face = "bold", size = 16),
+        plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+        legend.position = "top")
+
+# Display the plot
+combined_all_three_mee_plot
+```
+
+```{R}
+
+#Distribution of EE, PGTGR, and MEE
+
+#Group frontiers
+
+#Pooled
+summary(all_ee$EE_JLMS)
+sd(all_ee$EE_JLMS)
+
+#Non-adopters
+summary(nonadopters_ee$EE_JLMS)
+sd(nonadopters_ee$EE_JLMS)
+
+#Adopters
+summary(adopters_ee$EE_JLMS)
+sd(adopters_ee$EE_JLMS)
+
+#Extensive
+summary(extensive_ee$EE_JLMS)
+sd(extensive_ee$EE_JLMS)
+
+#Intensive
+summary(intensive_ee$EE_JLMS)
+sd(intensive_ee$EE_JLMS)
+
+#Metafrontier
+
+#Pooled
+#TGR
+summary(merged_data_2_ee$tgr_ee)
+sd(merged_data_2_ee$tgr_ee)
+
+summary(merged_data_2_ee$mee)
+sd(merged_data_2_ee$mee)
+
+#Non-adopters
+#TGR
+summary(nonadopters_tgr_ee)
+sd(nonadopters_tgr_ee)
+
+#MTE
+summary(nonadopters_mee)
+sd(nonadopters_mee)
+
+#Adopters
+#TGR
+summary(adopters_tgr_ee)
+sd(adopters_tgr_ee)
+
+#MTE
+summary(adopters_mee)
+sd(adopters_mee)
+
+#Extensive
+#TGR
+summary(extensive_tgr_ee)
+sd(extensive_tgr_ee)
+
+#MTE
+summary(extensive_mee)
+sd(extensive_mee)
+
+#Intensive
+#TGR
+summary(intensive_tgr_ee)
+sd(intensive_tgr_ee)
+
+#MTE
+summary(intensive_mee)
+sd(intensive_mee)
+```
+
+
+# Environmentally adjusted TE, EE, TGR, PGTR
+
+```{R}
+merged_data_2_ee$mte_mee <- merged_data_2_ee$mte*merged_data_2_ee$mee
+summary(merged_data_2_ee$mte_mee)
+
+
+all_three_mte_mee <- rbind(
+  mutate(subset(merged_data_2_ee, Class == 1)[, "mte_mee"], group = paste("Extensive (N =", sum(!is.na(merged_data_2_ee$mte_mee[merged_data_2_ee$Class == 1])), ")")),
+  mutate(subset(merged_data_2_ee, Class == 2)[, "mte_mee"], group = paste("Intensive (N =", sum(!is.na(merged_data_2_ee$mte_mee[merged_data_2_ee$Class == 2])), ")")),
+  mutate(subset(merged_data_2_ee, adoption == 0)[, "mte_mee"], group = paste("Non-adopters (N =", sum(!is.na(merged_data_2_ee$mte_mee[merged_data_2_ee$adoption == 0])), ")"))
+)
+
+# Calculate mean MEE scores for non-adopters, intensive, and extensive adopters
+mean_all_three_mte_mee <- all_three_mte_mee %>%
+  group_by(group) %>%
+  summarize(mean_mte_mee = mean(mte_mee))
+
+# Plot combined data with mean annotations
+combined_all_three_mte_mee_plot <- ggplot(all_three_mte_mee, aes(x = mte_mee, color = group, fill = group)) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.1) +
+  geom_vline(data = mean_all_three_mte_mee, aes(xintercept = mean_mte_mee, color = group), linetype = "dashed") + 
+  geom_text(data = mean_all_three_mte_mee, aes(x = mean_mte_mee, label = round(mean_mte_mee, 2), y = 0.5, color = group), hjust = 1, vjust = 1, size = 6, show.legend = FALSE) +
+  scale_fill_manual(values = c("orange", "darkgreen", "black"), name = "") +
+  scale_color_manual(values = c("orange", "darkgreen", "black"), name = "") +
+  theme_bw() +
+  labs(x = "Environmentally-adjusted efficiency", y = "Density") +
+  theme(axis.title.x = element_text(face = "bold", size = 16),
+        axis.title.y = element_text(face = "bold", size = 16),
+        axis.text.x = element_text(face = "bold", size = 16),
+        axis.text.y = element_text(face = "bold", size = 16),
+        legend.text = element_text(face = "bold", size = 16),
+        legend.title = element_text(face = "bold", size = 16),
+        plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+        legend.position = "top")
+
+combined_all_three_mte_mee_plot
+
+```
+
+```{R}
+merged_data_2_ee$tgr_tgr_ee <- merged_data_2_ee$tgr*merged_data_2_ee$tgr_ee
+summary(merged_data_2_ee$tgr_tgr_ee)
+
+all_three_tgr_tgr_ee <- rbind(
+  mutate(subset(merged_data_2_ee, Class == 1)[, "tgr_tgr_ee"], group = paste("Extensive (N =", sum(!is.na(merged_data_2_ee$tgr_tgr_ee[merged_data_2_ee$Class == 1])), ")")),
+  mutate(subset(merged_data_2_ee, Class == 2)[, "tgr_tgr_ee"], group = paste("Intensive (N =", sum(!is.na(merged_data_2_ee$tgr_tgr_ee[merged_data_2_ee$Class == 2])), ")")),
+  mutate(subset(merged_data_2_ee, adoption == 0)[, "tgr_tgr_ee"], group = paste("Non-adopters (N =", sum(!is.na(merged_data_2_ee$tgr_tgr_ee[merged_data_2_ee$adoption == 0])), ")"))
+)
+
+# Calculate mean MEE scores for non-adopters, intensive, and extensive adopters
+mean_all_three_tgr_tgr_ee <- all_three_tgr_tgr_ee %>%
+  group_by(group) %>%
+  summarize(mean_tgr_tgr_ee = mean(tgr_tgr_ee))
+
+# Plot combined data with mean annotations
+combined_all_three_tgr_tgr_ee_plot <- ggplot(all_three_tgr_tgr_ee, aes(x = tgr_tgr_ee, color = group, fill = group)) +
+  geom_density(alpha = 0.3, size = 0.65, bw = 0.1) +
+  geom_vline(data = mean_all_three_tgr_tgr_ee, aes(xintercept = mean_tgr_tgr_ee, color = group), linetype = "dashed") + 
+  geom_text(data = mean_all_three_tgr_tgr_ee, aes(x = mean_tgr_tgr_ee, label = round(mean_tgr_tgr_ee, 2), y = 0.5, color = group), hjust = 1, vjust = 1, size = 6, show.legend = FALSE) +
+  scale_fill_manual(values = c("orange", "darkgreen", "black"), name = "") +
+  scale_color_manual(values = c("orange", "darkgreen", "black"), name = "") +
+  theme_bw() +
+  labs(x = "Environmentally-adjusted TGR", y = "Density") +
+  theme(axis.title.x = element_text(face = "bold", size = 16),
+        axis.title.y = element_text(face = "bold", size = 16),
+        axis.text.x = element_text(face = "bold", size = 16),
+        axis.text.y = element_text(face = "bold", size = 16),
+        legend.text = element_text(face = "bold", size = 16),
+        legend.title = element_text(face = "bold", size = 16),
+        plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+        legend.position = "top")
+
+combined_all_three_tgr_tgr_ee_plot
+
+```
+
+```{R}
+#Pooled
+#TGR
+summary(merged_data_2_ee$tgr_tgr_ee)
+sd(merged_data_2_ee$tgr_tgr_ee)
+
+summary(merged_data_2_ee$mte_mee)
+sd(merged_data_2_ee$mte_mee)
+
+#Non-adopters
+#TGR
+summary(merged_data_2_ee$tgr_tgr_ee[merged_data_2_ee$adoption == 0])
+sd(merged_data_2_ee$tgr_tgr_ee[merged_data_2_ee$adoption == 0])
+
+#MTE
+summary(merged_data_2_ee$mte_mee[merged_data_2_ee$adoption == 0])
+sd(merged_data_2_ee$mte_mee[merged_data_2_ee$adoption == 0])
+
+#Adopters
+#TGR
+summary(merged_data_2_ee$tgr_tgr_ee[merged_data_2_ee$adoption == 1])
+sd(merged_data_2_ee$tgr_tgr_ee[merged_data_2_ee$adoption == 1])
+
+#MTE
+summary(merged_data_2_ee$mte_mee[merged_data_2_ee$adoption == 1])
+sd(merged_data_2_ee$mte_mee[merged_data_2_ee$adoption == 1])
+
+#Extensive
+#TGR
+summary(na.omit(merged_data_2_ee$tgr_tgr_ee[merged_data_2_ee$Class == 1]))
+sd(na.omit(merged_data_2_ee$tgr_tgr_ee[merged_data_2_ee$Class == 1]))
+
+#MTE
+summary(na.omit(merged_data_2_ee$mte_mee[merged_data_2_ee$Class == 1]))
+sd(na.omit(merged_data_2_ee$mte_mee[merged_data_2_ee$Class == 1]))
+
+
+#Intensive
+#TGR
+summary(na.omit(merged_data_2_ee$tgr_tgr_ee[merged_data_2_ee$Class == 2]))
+sd(na.omit(merged_data_2_ee$tgr_tgr_ee[merged_data_2_ee$Class == 2]))
+
+#MTE
+summary(na.omit(merged_data_2_ee$mte_mee[merged_data_2_ee$Class == 2]))
+sd(na.omit(merged_data_2_ee$mte_mee[merged_data_2_ee$Class == 2]))
+```
+
+```{R}
+write_xlsx(merged_data_2_ee, "merged_data_2_ee.xlsx")
+```

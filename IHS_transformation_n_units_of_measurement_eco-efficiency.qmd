@@ -1,0 +1,164 @@
+# Clear environment
+rm(list = ls())
+options(encoding = "utf-8")
+mySeed <- 123
+
+# Load necessary libraries
+library("haven")
+library("lmtest")
+library("moments")
+library("DescTools")
+library("readxl")
+library("nortest") # Ensure this library is loaded for Anderson-Darling test
+
+# Define predR2 function
+predR2  <- function(linear.model) {
+  pr <- residuals(linear.model) / (1 - lm.influence(linear.model)$hat)
+  lm.anova <- anova(linear.model)
+  tss <- sum(lm.anova[["Sum Sq"]])
+  pred.r.squared <- 1 - sum(pr^2) / tss
+  return(pred.r.squared)
+}
+
+# Load data
+data <- read_excel("~/Desktop/Manuscript 2/data_2-2.xlsx", sheet = "te_ee_data")
+
+# Define factors and criteria
+ihsFactors <- 10^((-9):9)
+allCrit <- matrix(c( 
+  "rSquared", "max", 
+  "pSquared", "max",
+  "logLik", "max",
+  "logLikAdj", "max",
+  "Kolmogorov-Smirnov", "min",
+  "Shapiro-Wilk", "max",
+  "Shapiro-Fancia", "max", 
+  "Anderson", "min",
+  "Jarque-Bera", "min",
+  "Pearson", "min",
+  "kurtosis", "min abs",
+  "skewness", "min abs",
+  "Breusch-Pagan", "min",
+  "RESET", "min"), ncol = 2, byrow = TRUE)
+
+allTest <- c(allCrit[, 1])
+estIhs <- list()
+res <- matrix(NA, nrow = length(ihsFactors), ncol = length(allTest))
+rownames(res) <- ihsFactors
+colnames(res) <- allTest
+
+data$gva <- log(data$`GVA/ha...3`)
+data$gwp <- log(data$total_GWP_kg)
+data$specialisation <- log(data$Specialisation...7)
+data$energy <- log(data$total_energy_balance_MJ)
+data$nitrogen <- log(data$Nutrient_deficit_N_g...19)
+
+# Iterate over each scale factor
+for(scaleNo in 1:length(ihsFactors)) {
+  # Data transformations
+  data$toxicity <- asinh(data$toxicity_qty_ai_pesticides_g * ihsFactors[scaleNo])
+  data$phosphorus <- asinh(data$Nutrient_deficit_P_g...22 * ihsFactors[scaleNo])
+  
+  # Fit the model
+  estIhs[[scaleNo]] <- lm(gva ~ gwp + specialisation + energy + toxicity + nitrogen + phosphorus, 
+                          I(1/2*(gwp)^2)+
+                            I(1/2*(specialisation)^2)+
+                            I(1/2*(energy)^2)+
+                            I(1/2*(toxicity)^2)+
+                            I(1/2*(nitrogen)^2)+
+                            I(1/2*(phosphorus)^2)+
+                            I(gwp*specialisation)+
+                            I(gwp*energy)+
+                            I(gwp*toxicity)+
+                            I(gwp*nitrogen)+
+                            I(gwp*phosphorus)+
+                            I(specialisation*energy)+
+                            I(specialisation*toxicity)+
+                            I(specialisation*nitrogen)+
+                            I(specialisation*phosphorus)+
+                            I(energy*toxicity)+
+                            I(energy*nitrogen)+
+                            I(energy*phosphorus)+
+                            I(toxicity*nitrogen)+
+                            I(toxicity*phosphorus)+
+                            I(nitrogen*phosphorus),
+                          data = data)
+  
+  # Print the scale factor for debugging
+  print(paste("Processing scale factor:", ihsFactors[scaleNo]))
+  
+  # Check if the model fitting was successful
+  if(any(is.na(coef(estIhs[[scaleNo]])))) {
+   print("Warning: Model fitting returned NA coefficients, skipping this iteration.")
+    next
+  }
+  
+  # Store results in the res matrix
+  res[scaleNo, "rSquared"] <- summary(estIhs[[scaleNo]])$r.squared
+  res[scaleNo, "pSquared"] <- predR2(estIhs[[scaleNo]])
+  res[scaleNo, "logLik"] <- logLik(estIhs[[scaleNo]])
+  
+  # Corrected log-likelihood adjustment
+  tryCatch({
+    res[scaleNo, "logLikAdj"] <- logLik(estIhs[[scaleNo]]) - 
+      0.5 * sum(log((data$`GVA/ha...3` * ihsFactors[scaleNo])^2 + 1)) +
+      (length(data$`GVA/ha...3`) / 2) * log(ihsFactors[scaleNo]^2)
+  }, error = function(e) {
+    print(paste("Error in logLikAdj calculation for scale factor:", ihsFactors[scaleNo]))
+    res[scaleNo, "logLikAdj"] <- NA
+  })
+  
+  # Normality tests
+  res[scaleNo, "Kolmogorov-Smirnov"] <- ks.test(resid(estIhs[[scaleNo]]), "pnorm", mean = mean(resid(estIhs[[scaleNo]])), sd = sd(resid(estIhs[[scaleNo]])))$statistic
+  res[scaleNo, "Shapiro-Wilk"] <- shapiro.test(resid(estIhs[[scaleNo]]))$statistic
+  res[scaleNo, "Shapiro-Fancia"] <- ShapiroFranciaTest(resid(estIhs[[scaleNo]]))$statistic
+  res[scaleNo, "Anderson"] <- nortest::ad.test(resid(estIhs[[scaleNo]]))$statistic
+  res[scaleNo, "Jarque-Bera"] <- JarqueBeraTest(resid(estIhs[[scaleNo]]), robust = TRUE)$statistic
+  res[scaleNo, "Pearson"] <- PearsonTest(resid(estIhs[[scaleNo]]), adjust=TRUE)$statistic
+  
+  # Kurtosis and skewness
+  res[scaleNo, "kurtosis"] <- kurtosis(resid(estIhs[[scaleNo]]))
+  res[scaleNo, "skewness"] <- skewness(resid(estIhs[[scaleNo]]))
+  
+  # Heteroscedasticity and functional form tests
+  res[scaleNo, "Breusch-Pagan"] <- bptest(estIhs[[scaleNo]])$statistic
+  res[scaleNo, "RESET"] <- resettest(estIhs[[scaleNo]])$statistic
+  
+  # Print the current state of the res matrix for debugging
+  print(res)
+}
+
+# Print final results
+print("Final res matrix:")
+print(res)
+
+# Combine results into a data frame
+allResEmp <- as.data.frame(cbind("scale factor" = log(ihsFactors, 10), 
+                                 "unit of measurement" = -log(ihsFactors, 10), res))
+
+# Print final combined results
+print("Final combined results:")
+print(allResEmp)
+
+# Load the necessary library
+library(xtable)
+
+# Assuming 'allResEmp' is your final data frame
+# Round the numeric values for better readability
+allResEmpRounded <- round(allResEmp, 8)
+
+# Generate the LaTeX code for the table
+latex_table <- xtable(allResEmpRounded, 
+                      caption = "Summary of Model Results by Scale Factor", 
+                      label = "tab:model_results")
+latex_table
+# Define the file path where you want to save the LaTeX file
+file_path <- "model_results_table1.tex"
+
+# Save the LaTeX code to a .tex file
+print(latex_table, 
+      file = file_path, 
+      include.rownames = FALSE, 
+      table.placement = "H", 
+      caption.placement = "top")
+#-------------------------------
